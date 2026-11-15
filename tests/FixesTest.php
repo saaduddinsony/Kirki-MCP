@@ -222,4 +222,168 @@ class FixesTest extends TestCase {
 		$this->expectException( InvalidArgumentException::class );
 		$document->update_element( $heading, array( 'class_ids' => array( 'not-a-real-class' ) ) );
 	}
+
+	/**
+	 * Head code is style blocks only, and a broken font URL is rejected.
+	 */
+	public function test_custom_code_and_font_urls_reject_markup() {
+		$this->assertSame(
+			'<style>:root{--ink:#17181a}</style>',
+			Css::head_style_blocks( '<style>:root{--ink:#17181a}</style>' )
+		);
+		$rejected = array(
+			'<iframe srcdoc="&lt;script&gt;parent.alert(document.domain)&lt;/script&gt;">',
+			'<a href="javascript&#58;alert(1)">x</a>',
+			'<object data="data:text/html;base64,PHNjcmlwdD4=">',
+			'<svg><a xlink:href="&#106;avascript:alert(1)">',
+			'<base href="https://evil.example/">',
+			'<link rel="stylesheet" href="https://evil.example/x.css">',
+			'<style>@import url(https://evil.example/x.css);</style>',
+			'<style></style><script>alert(1)</script>',
+		);
+		foreach ( $rejected as $html ) {
+			try {
+				Css::head_style_blocks( $html );
+				$this->fail( 'Head code should have been rejected: ' . $html );
+			} catch ( InvalidArgumentException $error ) {
+				$this->assertNotSame( '', $error->getMessage() );
+			}
+		}
+
+		$this->assertSame(
+			'https://fonts.googleapis.com/css2?family=Fraunces&display=swap',
+			Css::google_font_url( 'Fraunces' )
+		);
+		$this->expectException( InvalidArgumentException::class );
+		Css::google_font_url( 'Fraunces', 'https://fonts.googleapis.com/css2?family=X"><script>alert(document.domain)</script>' );
+	}
+
+	/**
+	 * Shortcodes are removed before Kirki runs them in a meta description.
+	 */
+	public function test_meta_text_drops_shortcodes() {
+		$this->assertSame( 'Hello there', Css::plain_meta( 'Hello [caption] there' ) );
+	}
+
+	/**
+	 * A form can be submitted, and a button can be added to it later.
+	 */
+	public function test_forms_have_a_submit_button() {
+		$document = Document::from_sections(
+			array(
+				array(
+					'elements' => array(
+						array(
+							'type'   => 'form',
+							'email'  => 'hello@example.com',
+							'fields' => array(
+								array(
+									'name'  => 'email',
+									'label' => 'Email',
+									'type'  => 'email',
+								),
+							),
+						),
+					),
+				),
+			)
+		);
+		$form   = '';
+		$submit = 0;
+		foreach ( $document->blocks as $id => $block ) {
+			if ( 'form' === $block['name'] ) {
+				$form = $id;
+			}
+			if ( 'button' === $block['name'] && isset( $block['properties']['attributes']['type'] ) && 'submit' === $block['properties']['attributes']['type'] ) {
+				++$submit;
+			}
+		}
+		$this->assertSame( 1, $submit );
+		$document->insert_element(
+			array(
+				'type'   => 'button',
+				'text'   => 'Send again',
+				'submit' => true,
+			),
+			$form,
+			null
+		);
+		$submit = 0;
+		foreach ( $document->blocks as $block ) {
+			if ( 'button' === $block['name'] && isset( $block['properties']['attributes']['type'] ) && 'submit' === $block['properties']['attributes']['type'] ) {
+				++$submit;
+			}
+		}
+		$this->assertSame( 2, $submit );
+	}
+
+	/**
+	 * Classes attached after creation remove the local defaults that covered them.
+	 */
+	public function test_classes_added_later_drop_default_css() {
+		$document = Document::from_sections(
+			array(
+				array(
+					'elements' => array(
+						array(
+							'type' => 'heading',
+							'tag'  => 'h1',
+							'text' => 'Hello',
+						),
+					),
+				),
+			)
+		);
+		$section = $document->blocks['body']['children'][0];
+		$heading = $document->blocks[ $section ]['children'][0];
+		$style   = $document->blocks[ $heading ]['styleIds'][0];
+		$this->assertStringContainsString( 'font-size:16px', $document->styles[ $style ]['variant']['md'] );
+		$document->set_class_ids( $heading, array( 't-display' ) );
+		$this->assertStringNotContainsString( 'font-size:16px', $document->styles[ $style ]['variant']['md'] );
+	}
+
+	/**
+	 * Two elements cannot share an anchor.
+	 */
+	public function test_duplicate_anchors_are_rejected() {
+		$this->expectException( InvalidArgumentException::class );
+		Document::from_sections(
+			array(
+				array( 'key' => 'damex-digital' ),
+				array( 'anchor' => 'damex-digital' ),
+			)
+		);
+	}
+
+	/**
+	 * An inline link href can be changed after the paragraph is created.
+	 */
+	public function test_link_text_href_can_be_edited() {
+		$document = Document::from_sections(
+			array(
+				array(
+					'elements' => array(
+						array(
+							'type'   => 'paragraph',
+							'inline' => array(
+								'Read the ',
+								array(
+									'text' => 'privacy policy',
+									'href' => '/privacy',
+								),
+							),
+						),
+					),
+				),
+			)
+		);
+		$link = '';
+		foreach ( $document->blocks as $id => $block ) {
+			if ( 'link-text' === $block['name'] ) {
+				$link = $id;
+			}
+		}
+		$document->update_element( $link, array( 'href' => '/about' ) );
+		$this->assertSame( '/about', $document->blocks[ $link ]['properties']['attributes']['href'] );
+	}
 }

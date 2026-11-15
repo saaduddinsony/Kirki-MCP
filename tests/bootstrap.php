@@ -7,6 +7,18 @@
 
 define( 'ABSPATH', __DIR__ . '/' );
 
+if ( ! function_exists( 'wp_parse_url' ) ) {
+	/**
+	 * Test stand-in for the WordPress function.
+	 *
+	 * @param string $url URL.
+	 * @return array|false
+	 */
+	function wp_parse_url( $url ) {
+		return parse_url( $url );
+	}
+}
+
 if ( ! function_exists( 'wp_strip_all_tags' ) ) {
 	/**
 	 * Test stand-in for the WordPress function.

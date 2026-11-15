@@ -97,6 +97,7 @@ class Document {
 		$doc      = self::blank();
 		$compiled = Spec_Compiler::compile_sections( $sections );
 		$doc->merge_compiled( $compiled, 'body', null, true );
+		$doc->assert_unique_anchors();
 		return $doc;
 	}
 
@@ -158,6 +159,7 @@ class Document {
 	public function insert_section( array $section, $index = null ) {
 		$compiled = Spec_Compiler::compile_sections( array( $section ) );
 		$this->merge_compiled( $compiled, 'body', $index, false );
+		$this->assert_unique_anchors();
 		return $compiled;
 	}
 
@@ -179,6 +181,7 @@ class Document {
 		$compiled = Spec_Compiler::compile_element_tree( $spec, $parent_id );
 		$this->absorb( $compiled['blocks'], $compiled['styles'], $compiled['keys'] );
 		$this->insert_child( $parent_id, $compiled['root_id'], $index );
+		$this->assert_unique_anchors();
 		return $compiled;
 	}
 
@@ -263,6 +266,9 @@ class Document {
 
 		if ( ! empty( $changes['title'] ) ) {
 			$block['title'] = Spec_Compiler::plain_text( $changes['title'] );
+			if ( 'section' === $type ) {
+				$this->assert_unique_anchors();
+			}
 		}
 	}
 
@@ -354,6 +360,87 @@ class Document {
 			$clean[] = $class_id;
 		}
 		$this->blocks[ $id ]['properties']['classesIds'] = $clean;
+		if ( $clean ) {
+			$this->release_class_defaults( false, $id );
+		}
+	}
+
+	/**
+	 * Remove Kirki's default local declarations from elements that have a global class.
+	 *
+	 * Those defaults are what covered the class. Pass $clear_local to drop the whole
+	 * local rule, including CSS that was copied onto the element by hand.
+	 *
+	 * @param bool        $clear_local Drop every local declaration.
+	 * @param string|null $only_id Limit the change to one element.
+	 * @return int How many elements were updated.
+	 */
+	public function release_class_defaults( $clear_local = false, $only_id = null ) {
+		$updated = 0;
+		foreach ( $this->blocks as $id => $block ) {
+			if ( null !== $only_id && (string) $only_id !== (string) $id ) {
+				continue;
+			}
+			if ( empty( $block['properties']['classesIds'] ) || ! is_array( $block['properties']['classesIds'] ) ) {
+				continue;
+			}
+			$style_ids = isset( $block['styleIds'] ) && is_array( $block['styleIds'] ) ? $block['styleIds'] : array();
+			$changed   = false;
+			foreach ( $style_ids as $style_id ) {
+				if ( empty( $this->styles[ $style_id ]['variant'] ) || ! is_array( $this->styles[ $style_id ]['variant'] ) ) {
+					continue;
+				}
+				foreach ( $this->styles[ $style_id ]['variant'] as $variant => $css ) {
+					$next = $clear_local ? '' : Spec_Compiler::without_defaults( $block['name'], (string) $variant, (string) $css );
+					if ( $next !== $css ) {
+						$this->styles[ $style_id ]['variant'][ $variant ] = $next;
+						$changed = true;
+					}
+				}
+			}
+			if ( $changed ) {
+				++$updated;
+			}
+		}
+		return $updated;
+	}
+
+	/**
+	 * Reject two elements that would share an HTML id.
+	 *
+	 * @return void
+	 */
+	public function assert_unique_anchors() {
+		$seen = array();
+		foreach ( $this->blocks as $id => $block ) {
+			$anchor = $this->anchor_of( $block );
+			if ( '' === $anchor ) {
+				continue;
+			}
+			if ( isset( $seen[ $anchor ] ) ) {
+				throw new \InvalidArgumentException( 'The anchor "' . $anchor . '" is already used. Each HTML id must be unique.' );
+			}
+			$seen[ $anchor ] = $id;
+		}
+	}
+
+	/**
+	 * HTML id Kirki will print for an element.
+	 *
+	 * @param array $block Element.
+	 * @return string
+	 */
+	private function anchor_of( array $block ) {
+		if ( ! empty( $block['properties']['customAttributes']['id'] ) ) {
+			return strtolower( (string) $block['properties']['customAttributes']['id'] );
+		}
+		if ( isset( $block['name'] ) && 'section' === $block['name'] && ! empty( $block['title'] ) ) {
+			$title = strtolower( trim( (string) $block['title'] ) );
+			if ( '' !== $title && 'section' !== $title ) {
+				return $title;
+			}
+		}
+		return '';
 	}
 
 	/**
@@ -619,8 +706,8 @@ class Document {
 	 * @return void
 	 */
 	private function set_href( array &$block, $href, $type ) {
-		if ( ! in_array( $block['name'], array( 'button', 'link-block' ), true ) ) {
-			throw new \InvalidArgumentException( 'Links can be set on a button or a link-block.' );
+		if ( ! in_array( $block['name'], array( 'button', 'link-block', 'link-text' ), true ) ) {
+			throw new \InvalidArgumentException( 'Links can be set on a button, a link-block, or a link-text element.' );
 		}
 		if ( ! isset( $block['properties']['attributes'] ) || ! is_array( $block['properties']['attributes'] ) ) {
 			$block['properties']['attributes'] = array();
@@ -654,6 +741,7 @@ class Document {
 			'div'        => array( 'section', 'div', 'heading', 'paragraph', 'text', 'button', 'image', 'link-block', 'link-text', 'navigation', 'form', 'list' ),
 			'link-block' => array( 'div', 'heading', 'paragraph', 'text', 'button', 'image', 'list', 'link-text' ),
 			'button'     => array( 'text', 'heading' ),
+			'form'       => array( 'button', 'div', 'heading', 'paragraph', 'text', 'link-text' ),
 		);
 		if ( ! isset( $ok[ $parent ] ) || ! in_array( $child_type, $ok[ $parent ], true ) ) {
 			throw new \InvalidArgumentException( 'A ' . $parent . ' cannot contain a ' . $child_type . '.' );

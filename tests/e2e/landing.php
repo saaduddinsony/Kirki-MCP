@@ -3,7 +3,7 @@
  * Build a Kirki landing page through the MCP HTTP endpoint.
  *
  * Uses an application password and no browser nonce. Run it against a site
- * that has WordPress, Kirki 6.x, MCP Adapter, and this plugin active:
+ * that has WordPress, Kirki 6.4.x, MCP Adapter, and this plugin active:
  *
  *   KIRKI_MCP_URL=http://127.0.0.1:8080 \
  *   KIRKI_MCP_USER=admin \

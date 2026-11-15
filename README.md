@@ -10,7 +10,7 @@ Pages are stored in the same post meta Kirki's editor writes (`kirki` for the el
 
 - WordPress 6.9 or newer
 - PHP 7.4 or newer
-- Kirki 6.x (tested with 6.4.2)
+- Kirki 6.4.x (tested with 6.4.2; 6.5 and 7 are not supported)
 - The [MCP Adapter](https://wordpress.org/plugins/mcp-adapter/) plugin
 
 ## Install on a live site
@@ -165,7 +165,7 @@ The zip is written to `dist/kirki-mcp-0.2.1.zip`.
 ## Known gaps
 
 - Content Manager collections and items are not writable.
-- Popups, forms, navigation, sliders, and interactions are not generated.
+- Popups, sliders, and interactions are not generated. Forms (with email delivery and a submit button) and navigation (with a mobile menu) are.
 - Template ZIP import is not implemented. Existing `kirki_template` posts can be listed.
-- Kirki Pro-only behavior was not tested. This plugin targets the free 6.x plugin.
-- Supported range is Kirki `>= 6.0.0` and `< 7.0.0`, tested against 6.4.2. The stored JSON is not a public schema and can change in a later 6.x release.
+- Kirki Pro-only behavior was not tested. This plugin targets the free 6.4.x plugin.
+- Supported range is Kirki `>= 6.4.0` and `< 6.5.0`, tested against 6.4.2. `kirki_mcp_supported_kirki_range` can widen it after you have checked that build. The stored JSON is not a public schema.

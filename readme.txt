@@ -12,14 +12,14 @@ Lets MCP-capable AI agents build and edit sites made with the Kirki visual build
 
 == Description ==
 
-Kirki MCP is a companion to the free Kirki 6 builder. It registers WordPress abilities for pages, sections, elements, global classes, colors, fonts, and header and footer symbols. The official MCP Adapter plugin exposes those abilities to Claude Code, Cursor, Claude Desktop, and any other MCP client.
+Kirki MCP is a companion to the free Kirki 6.4 builder. It registers WordPress abilities for pages, sections, elements, forms, navigation, global classes, colors, fonts, and header and footer symbols. The official MCP Adapter plugin exposes those abilities to Claude Code, Cursor, Claude Desktop, and any other MCP client.
 
 The plugin does not modify Kirki. Pages are saved in the post meta Kirki's editor already uses, so a page built through MCP opens and edits in the Kirki canvas.
 
 Requires:
 
 * WordPress 6.9 or newer (the Abilities API)
-* Kirki 6.x
+* Kirki 6.4.x
 * The MCP Adapter plugin
 
 Connect an agent with an application password to:
@@ -45,7 +45,7 @@ No. Kirki renders the pages. This plugin writes the design data Kirki already un
 
 = Which Kirki versions are supported? =
 
-Kirki 6.x. It was tested with 6.4.2. Kirki 7 is not supported yet.
+Kirki 6.4.x only. It was tested with 6.4.2. Kirki 6.5 and 7 are not supported. Forms, navigation, lists, and inline links can be generated.
 
 = Can an agent publish a page? =
 

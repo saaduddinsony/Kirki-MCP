@@ -90,9 +90,11 @@ class Symbol_Repository {
 	 */
 	public static function create( $name, $role, array $sections ) {
 		Page_Repository::assert_ready();
-		$name   = self::name( $name );
-		$set_as = self::role( $role );
-		$built  = self::validated_symbol( 0, $name, $set_as, $sections );
+		$name              = self::name( $name );
+		$set_as            = self::role( $role );
+		$built             = self::validated_symbol( 0, $name, $set_as, $sections );
+		$built['setAs']    = '';
+		$built['category'] = 'other';
 		if ( ! class_exists( '\Kirki\App\Managers\SymbolManager' ) || ! class_exists( '\Kirki\App\DTO\Symbol\SymbolDTO' ) ) {
 			throw new \RuntimeException( 'Kirki SymbolManager is not available.' );
 		}
@@ -117,7 +119,7 @@ class Symbol_Repository {
 			)
 		);
 		if ( '' !== $set_as ) {
-			self::assign_role( $set_as, $post_id );
+			self::assign_role( $set_as, $post_id, true );
 		}
 
 		return self::get( $post_id );
@@ -161,13 +163,13 @@ class Symbol_Repository {
 			$data['styleBlocks'] = $built['styleBlocks'];
 			$data['root']        = 'root';
 		}
-		$data['setAs']    = $next_role;
-		$data['category'] = '' !== $next_role ? $next_role : 'other';
+		$data['setAs']    = '';
+		$data['category'] = 'other';
 
 		update_post_meta( $post->ID, 'kirki', $data );
 		update_post_meta( $post->ID, 'kirki_editor_mode', 'kirki' );
 		if ( '' !== $next_role ) {
-			self::assign_role( $next_role, $post->ID );
+			self::assign_role( $next_role, $post->ID, false );
 		}
 		return self::get( $post->ID );
 	}
@@ -222,19 +224,69 @@ class Symbol_Repository {
 	 *
 	 * @param string $role header or footer.
 	 * @param int    $post_id Symbol that should keep the role.
+	 * @param bool   $delete_on_failure Delete $post_id when the role cannot be moved.
 	 * @return void
 	 */
-	private static function assign_role( $role, $post_id ) {
+	private static function assign_role( $role, $post_id, $delete_on_failure ) {
+		$previous = self::role_holders( $role, $post_id );
 		try {
 			self::clear_role( $role, $post_id );
+			self::write_role( $post_id, $role );
 		} catch ( \Throwable $error ) {
-			$data = self::read_meta( $post_id );
-			if ( $data ) {
-				$data['setAs'] = '';
-				update_post_meta( $post_id, 'kirki', $data );
+			foreach ( $previous as $holder_id ) {
+				self::write_role( $holder_id, $role );
 			}
-			throw new \RuntimeException( 'The symbol was saved, but the previous ' . $role . ' could not be unassigned, so this symbol was left unassigned too.' );
+			self::write_role( $post_id, '' );
+			if ( $delete_on_failure ) {
+				wp_delete_post( $post_id, true );
+			}
+			throw new \RuntimeException( 'The previous ' . $role . ' could not be unassigned, so this symbol was left unassigned.' );
 		}
+	}
+
+	/**
+	 * Symbols that currently hold a role, other than $except.
+	 *
+	 * @param string $role header or footer.
+	 * @param int    $except Post id to ignore.
+	 * @return int[]
+	 */
+	private static function role_holders( $role, $except ) {
+		$posts = get_posts(
+			array(
+				'post_type'   => 'kirki_symbol',
+				'post_status' => array( 'draft', 'publish', 'private' ),
+				'numberposts' => -1,
+			)
+		);
+		$ids   = array();
+		foreach ( $posts as $post ) {
+			if ( (int) $post->ID === (int) $except ) {
+				continue;
+			}
+			$data = self::read_meta( $post->ID );
+			if ( isset( $data['setAs'] ) && $data['setAs'] === $role ) {
+				$ids[] = (int) $post->ID;
+			}
+		}
+		return $ids;
+	}
+
+	/**
+	 * Set or clear one symbol's role.
+	 *
+	 * @param int    $post_id Symbol id.
+	 * @param string $role header, footer, or empty.
+	 * @return void
+	 */
+	private static function write_role( $post_id, $role ) {
+		$data = self::read_meta( $post_id );
+		if ( ! $data ) {
+			return;
+		}
+		$data['setAs']    = $role;
+		$data['category'] = '' !== $role ? $role : 'other';
+		update_post_meta( $post_id, 'kirki', $data );
 	}
 
 	/**

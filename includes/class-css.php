@@ -112,6 +112,112 @@ class Css {
 	}
 
 	/**
+	 * Head custom code: one or more style blocks, and nothing else.
+	 *
+	 * @param string $html Raw head code.
+	 * @return string
+	 */
+	public static function head_style_blocks( $html ) {
+		$html = trim( (string) $html );
+		if ( '' === $html ) {
+			return '';
+		}
+		if ( strlen( $html ) > 20000 ) {
+			throw new \InvalidArgumentException( 'Custom code is limited to 20,000 characters.' );
+		}
+		if ( ! preg_match( '/^(?:\s*<style(?:\s+type=(?:"text\/css"|\'text\/css\'))?\s*>.*?<\/style>\s*)+$/is', $html ) ) {
+			throw new \InvalidArgumentException( 'Head code must be one or more <style> blocks.' );
+		}
+		preg_match_all( '/<style(?:\s+type=(?:"text\/css"|\'text\/css\'))?\s*>(.*?)<\/style>/is', $html, $matches );
+		$out = '';
+		foreach ( $matches[1] as $css ) {
+			$out .= '<style>' . self::sanitize_stylesheet( $css ) . '</style>';
+		}
+		return $out;
+	}
+
+	/**
+	 * CSS for a style element. Selectors and braces are allowed. Breakouts are not.
+	 *
+	 * @param string $css Stylesheet text.
+	 * @return string
+	 */
+	public static function sanitize_stylesheet( $css ) {
+		$css = trim( (string) $css );
+		if ( '' === $css ) {
+			throw new \InvalidArgumentException( 'A style block is empty.' );
+		}
+		if ( preg_match( '/[<>]|@import|@charset|@namespace|expression\s*\(|javascript\s*:|behavior\s*:|-moz-binding|\\\\/i', $css ) ) {
+			throw new \InvalidArgumentException( 'That style block was rejected.' );
+		}
+		if ( preg_match_all( '/url\(\s*([\'"]?)(.*?)\1\s*\)/i', $css, $matches ) ) {
+			foreach ( $matches[2] as $url ) {
+				if ( ! self::is_safe_css_url( $url ) ) {
+					throw new \InvalidArgumentException( 'CSS url() values must be http(s) or site-relative paths.' );
+				}
+			}
+		}
+		return $css;
+	}
+
+	/**
+	 * A Google Fonts stylesheet built from a family name, or a URL that matches that host and path.
+	 *
+	 * @param string $family Family name.
+	 * @param string $url Optional caller URL. Rejected unless it is a fonts.googleapis.com /css or /css2 URL with no markup.
+	 * @return string
+	 */
+	public static function google_font_url( $family, $url = '' ) {
+		$family = trim( (string) $family );
+		if ( ! preg_match( '/^[A-Za-z0-9][A-Za-z0-9 -]{0,60}$/', $family ) ) {
+			throw new \InvalidArgumentException( 'Font family names may contain letters, numbers, spaces, and hyphens.' );
+		}
+		$built = 'https://fonts.googleapis.com/css2?family=' . str_replace( ' ', '+', $family ) . '&display=swap';
+		$url   = trim( (string) $url );
+		if ( '' === $url ) {
+			return $built;
+		}
+		if ( preg_match( '/["\'<>\s\\\\]/', $url ) ) {
+			throw new \InvalidArgumentException( 'That font URL was rejected.' );
+		}
+		$parts = wp_parse_url( $url );
+		$path  = is_array( $parts ) && isset( $parts['path'] ) ? $parts['path'] : '';
+		if ( ! is_array( $parts ) || ( $parts['scheme'] ?? '' ) !== 'https' || strtolower( (string) ( $parts['host'] ?? '' ) ) !== 'fonts.googleapis.com' ) {
+			throw new \InvalidArgumentException( 'Only https://fonts.googleapis.com stylesheets can be registered.' );
+		}
+		if ( '/css' !== $path && '/css2' !== $path ) {
+			throw new \InvalidArgumentException( 'A Google Fonts URL must use the /css or /css2 path.' );
+		}
+		if ( isset( $parts['user'] ) || isset( $parts['pass'] ) || isset( $parts['port'] ) || isset( $parts['fragment'] ) ) {
+			throw new \InvalidArgumentException( 'That font URL was rejected.' );
+		}
+		$query = isset( $parts['query'] ) ? (string) $parts['query'] : '';
+		if ( '' !== $query && ! preg_match( '/^[A-Za-z0-9=&+,:;@.%_-]+$/', $query ) ) {
+			throw new \InvalidArgumentException( 'That font URL was rejected.' );
+		}
+		$safe = 'https://fonts.googleapis.com' . $path . ( '' !== $query ? '?' . $query : '' );
+		if ( function_exists( 'esc_url_raw' ) ) {
+			$safe = esc_url_raw( $safe );
+		}
+		if ( ! is_string( $safe ) || 0 !== strpos( $safe, 'https://fonts.googleapis.com/' ) ) {
+			throw new \InvalidArgumentException( 'That font URL was rejected.' );
+		}
+		return $safe;
+	}
+
+	/**
+	 * Remove shortcode brackets from text Kirki will pass through do_shortcode.
+	 *
+	 * @param string $text Raw text.
+	 * @return string
+	 */
+	public static function plain_meta( $text ) {
+		$text = preg_replace( '/\[[^\]]*\]/', '', (string) $text );
+		$text = trim( preg_replace( '/\s+/', ' ', $text ) );
+		return $text;
+	}
+
+	/**
 	 * A CSS font-family list. Quoted families pass through Kirki unchanged.
 	 *
 	 * @param string $value Font stack.

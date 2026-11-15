@@ -13,7 +13,7 @@
  * @wordpress-plugin
  * Plugin Name:       Kirki MCP
  * Plugin URI:        https://github.com/saaduddinsony/Kirki-MCP
- * Description:       Build and edit Kirki sites from any MCP-capable AI agent. Requires Kirki 6 and the official WordPress MCP Adapter.
+ * Description:       Build and edit Kirki sites from any MCP-capable AI agent. Requires Kirki 6.4.x and the official WordPress MCP Adapter.
  * Version:           0.2.1
  * Requires at least: 6.9
  * Requires PHP:      7.4

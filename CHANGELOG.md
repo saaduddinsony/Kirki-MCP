@@ -2,6 +2,11 @@
 
 ## 0.2.1
 
+- Custom code requires `unfiltered_html` plus Kirki builder access. Head code is limited to sanitized `<style>` blocks. Body code goes through `wp_kses_post`.
+- Font URLs are built from the family name, or rejected when they contain quotes, markup, or whitespace.
+- Every form includes a submit button, and a form can receive another button later.
+- Attaching a global class removes that element's default local CSS. `reapply-global-classes` does the same for pages built earlier.
+- Duplicate anchors are rejected. Link text hrefs can be edited. SEO text cannot contain shortcodes, and the Open Graph key is always present so Kirki does not warn.
 - An element that has a global class no longer gets Kirki's default local declarations, which were painting over the class. Styles set on that element are marked important so they still override the class.
 - Pages are marked to use the current class manager, so Kirki includes those classes in the front-end CSS.
 - Setting a font variable registers each family with Kirki's custom fonts as a `fonts.googleapis.com` stylesheet. Kirki prints the link tag.

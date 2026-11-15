@@ -78,6 +78,15 @@ class Access {
 	}
 
 	/**
+	 * Custom code is printed raw by Kirki, so it needs unfiltered_html as well as builder access.
+	 *
+	 * @return bool
+	 */
+	public static function can_edit_custom_code() {
+		return self::can_build() && true === current_user_can( 'unfiltered_html' );
+	}
+
+	/**
 	 * Call a Kirki user access method. Missing Kirki means no access.
 	 *
 	 * @param string $method has_builder_access or has_edit_access.
@@ -90,6 +99,12 @@ class Access {
 		$user = \Kirki\Framework\user();
 		if ( ! is_object( $user ) || ! method_exists( $user, $method ) ) {
 			return false;
+		}
+		if ( method_exists( $user, 'sync' ) ) {
+			$user_id = (int) get_current_user_id();
+			if ( $user_id > 0 ) {
+				$user->sync( $user_id );
+			}
 		}
 		return true === $user->{$method}();
 	}

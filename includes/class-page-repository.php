@@ -230,13 +230,16 @@ class Page_Repository {
 		if ( ! isset( $seo['seoSettings'] ) || ! is_array( $seo['seoSettings'] ) ) {
 			$seo['seoSettings'] = array();
 		}
-		$description = sanitize_text_field( $meta_description );
+		$description = sanitize_text_field( Css::plain_meta( $meta_description ) );
 		if ( '' === $description ) {
 			throw new \InvalidArgumentException( 'A meta description is required.' );
 		}
 		$seo['seoSettings']['seoMetaDesc'] = array( 'value' => $description );
 		if ( '' !== $seo_title ) {
-			$seo['seoSettings']['seoTitleTag'] = array( 'value' => sanitize_text_field( $seo_title ) );
+			$seo['seoSettings']['seoTitleTag'] = array( 'value' => sanitize_text_field( Css::plain_meta( $seo_title ) ) );
+		}
+		if ( ! isset( $seo['openGraph'] ) || ! is_array( $seo['openGraph'] ) ) {
+			$seo['openGraph'] = array();
 		}
 		update_post_meta( $post->ID, 'kirki_page_seo_settings', $seo );
 		wp_update_post(
@@ -261,9 +264,12 @@ class Page_Repository {
 	 * @return array
 	 */
 	public static function update_custom_code( $page_id, $head, $body ) {
+		if ( ! Access::can_edit_custom_code() ) {
+			throw new \InvalidArgumentException( 'Custom code requires Kirki builder access and the unfiltered_html capability.' );
+		}
 		$post = self::page( $page_id );
-		$head = self::custom_code_value( $head );
-		$body = self::custom_code_value( $body );
+		$head = Css::head_style_blocks( $head );
+		$body = self::body_code( $body );
 		$code = get_post_meta( $post->ID, 'kirki_page_custom_code', true );
 		if ( ! is_array( $code ) ) {
 			$code = array();
@@ -283,20 +289,20 @@ class Page_Repository {
 	}
 
 	/**
-	 * Reject scripts in custom code. Style and plain markup are allowed.
+	 * Body custom code, filtered the same way as post content.
 	 *
-	 * @param string $code Raw code.
+	 * @param string $code Raw markup.
 	 * @return string
 	 */
-	private static function custom_code_value( $code ) {
+	private static function body_code( $code ) {
 		$code = trim( (string) $code );
 		if ( strlen( $code ) > 20000 ) {
 			throw new \InvalidArgumentException( 'Custom code is limited to 20,000 characters.' );
 		}
-		if ( preg_match( '/<\s*script|javascript\s*:|on[a-z]+\s*=/i', $code ) ) {
-			throw new \InvalidArgumentException( 'Custom code cannot include scripts or event handlers.' );
+		if ( '' === $code ) {
+			return '';
 		}
-		return $code;
+		return wp_kses_post( $code );
 	}
 
 	/**

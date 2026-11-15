@@ -97,7 +97,7 @@ class Abilities {
 		);
 
 		return array(
-			'get-site-context'      => self::tool(
+			'get-site-context'       => self::tool(
 				'Get Kirki site context',
 				'Read this before designing. Returns the Kirki version, viewports, global color, size, and font variables, global classes, and header or footer symbols.',
 				true,
@@ -110,7 +110,7 @@ class Abilities {
 				false,
 				'read'
 			),
-			'get-element-schema'    => self::tool(
+			'get-element-schema'     => self::tool(
 				'Get the Kirki element schema',
 				'Describes the section and element spec accepted by create-page, add-section, add-element, and create-symbol, including CSS variant names.',
 				true,
@@ -120,7 +120,7 @@ class Abilities {
 				),
 				array( self::class, 'get_element_schema' )
 			),
-			'list-pages'            => self::tool(
+			'list-pages'             => self::tool(
 				'List pages',
 				'List WordPress pages. By default only pages built with Kirki are returned.',
 				true,
@@ -146,7 +146,7 @@ class Abilities {
 				),
 				array( self::class, 'list_pages' )
 			),
-			'get-page'              => self::tool(
+			'get-page'               => self::tool(
 				'Read a Kirki page',
 				'Read a page before changing it. Returns a compact element tree with ids, the local style blocks, the permalink, and the Kirki editor URL.',
 				true,
@@ -164,7 +164,7 @@ class Abilities {
 				),
 				array( self::class, 'get_page' )
 			),
-			'create-page'           => self::tool(
+			'create-page'            => self::tool(
 				'Create a Kirki page',
 				'Create a page from sections. The page is a WordPress draft unless status is publish. Sections stack on the body. Use key and link_key for in-page links. Classes must already exist.',
 				false,
@@ -194,7 +194,7 @@ class Abilities {
 				array( self::class, 'create_page' ),
 				false
 			),
-			'update-page'           => self::tool(
+			'update-page'            => self::tool(
 				'Update page title or slug',
 				'Change the WordPress title or slug of a Kirki page. This does not change the design. Use add-section, update-element, or update-styles for the design.',
 				false,
@@ -214,9 +214,9 @@ class Abilities {
 				array( self::class, 'update_page' ),
 				true
 			),
-			'update-custom-code'    => self::tool(
+			'update-custom-code'     => self::tool(
 				'Update page custom code',
-				'Set the head or body custom code Kirki prints for one page. Use this for a style block or :root aliases. Scripts and event handlers are rejected.',
+				'Write head or body code that Kirki prints immediately. This is not staged. Head code must be one or more <style> blocks. Body code is filtered with wp_kses_post. Requires Kirki builder access and unfiltered_html.',
 				false,
 				array(
 					'type'       => 'object',
@@ -233,11 +233,13 @@ class Abilities {
 					'required'   => array( 'page_id' ),
 				),
 				array( self::class, 'update_custom_code' ),
-				true
+				true,
+				false,
+				'unfiltered_html'
 			),
-			'update-page-settings'  => self::tool(
+			'update-page-settings'   => self::tool(
 				'Update SEO settings',
-				'Set the meta description Kirki prints, and an optional SEO title. The description is also stored as the page excerpt.',
+				'Set the meta description Kirki prints, and an optional SEO title. The description is also stored as the page excerpt. SEO settings are written to published meta immediately. Kirki does not stage them.',
 				false,
 				array(
 					'type'       => 'object',
@@ -256,7 +258,7 @@ class Abilities {
 				array( self::class, 'update_page_settings' ),
 				true
 			),
-			'add-section'           => self::tool(
+			'add-section'            => self::tool(
 				'Add a section',
 				'Insert one section onto the page body at an optional index. Read the page first if you need to choose a position.',
 				false,
@@ -275,7 +277,7 @@ class Abilities {
 				),
 				array( self::class, 'add_section' )
 			),
-			'add-element'           => self::tool(
+			'add-element'            => self::tool(
 				'Add an element',
 				'Insert an element under a parent from the page tree. Parents that can hold children are body, section, div, link-block, and button.',
 				false,
@@ -296,7 +298,7 @@ class Abilities {
 				),
 				array( self::class, 'add_element' )
 			),
-			'update-element'        => self::tool(
+			'update-element'         => self::tool(
 				'Update an element',
 				'Change text, tag, link, image source, or alt on an existing element. Pass section_id to link a button to a section element id. Does not remove the element.',
 				false,
@@ -351,7 +353,7 @@ class Abilities {
 				array( self::class, 'update_element' ),
 				true
 			),
-			'update-styles'         => self::tool(
+			'update-styles'          => self::tool(
 				'Update element styles',
 				'Replace the named CSS variants on an element. Read the page to see the current variant. Keys are md, tablet, mobile, md_hover, and md_active. This replaces those keys; it does not append.',
 				false,
@@ -369,7 +371,28 @@ class Abilities {
 				array( self::class, 'update_styles' ),
 				true
 			),
-			'remove-element'        => self::tool(
+			'reapply-global-classes' => self::tool(
+				'Reapply global classes',
+				'Remove Kirki\'s default local CSS from elements that already have a global class, so the class can style them. Use this after attaching a class, and on pages built before that fix. clear_local also removes CSS that was copied onto the element by hand. The change is staged on a published page.',
+				false,
+				array(
+					'type'       => 'object',
+					'properties' => array(
+						'page_id'     => $page,
+						'clear_local' => array(
+							'type'        => 'boolean',
+							'description' => 'Drop the entire local rule on classed elements.',
+						),
+						'convert'     => array(
+							'type' => 'boolean',
+						),
+					),
+					'required'   => array( 'page_id' ),
+				),
+				array( self::class, 'reapply_global_classes' ),
+				true
+			),
+			'remove-element'         => self::tool(
 				'Remove an element',
 				'Remove an element and its children. This is destructive and does nothing unless confirm is true. Root and body cannot be removed.',
 				false,
@@ -391,7 +414,7 @@ class Abilities {
 				false,
 				true
 			),
-			'duplicate-page'        => self::tool(
+			'duplicate-page'         => self::tool(
 				'Duplicate a page',
 				'Duplicate a Kirki page as a new draft, including its elements and styles.',
 				false,
@@ -404,7 +427,7 @@ class Abilities {
 				),
 				array( self::class, 'duplicate_page' )
 			),
-			'publish-page'          => self::tool(
+			'publish-page'           => self::tool(
 				'Publish a page',
 				'Promote an unpublished Kirki stage when one exists, set the WordPress page to publish, and optionally make it the site front page.',
 				false,
@@ -425,7 +448,7 @@ class Abilities {
 				false,
 				'publish_pages'
 			),
-			'trash-page'            => self::tool(
+			'trash-page'             => self::tool(
 				'Trash a page',
 				'Move a page to the WordPress trash. Requires confirm set to true.',
 				false,
@@ -443,7 +466,7 @@ class Abilities {
 				false,
 				true
 			),
-			'register-font'         => self::tool(
+			'register-font'          => self::tool(
 				'Register a web font',
 				'Register a Google Fonts stylesheet so Kirki loads it on the front end. The URL must be https://fonts.googleapis.com. Example family: Fraunces. Example url: https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500&display=swap.',
 				false,
@@ -461,7 +484,7 @@ class Abilities {
 				),
 				array( self::class, 'register_font' )
 			),
-			'list-global-classes'   => self::tool(
+			'list-global-classes'    => self::tool(
 				'List global classes',
 				'List Kirki global classes and their CSS variants.',
 				true,
@@ -474,7 +497,7 @@ class Abilities {
 				false,
 				'edit_theme_options'
 			),
-			'upsert-global-class'   => self::tool(
+			'upsert-global-class'    => self::tool(
 				'Create or update a global class',
 				'Create a site-wide class, or replace the given CSS variants of an existing class with the same name. Attach it to an element with the classes field.',
 				false,
@@ -494,7 +517,7 @@ class Abilities {
 				false,
 				'edit_theme_options'
 			),
-			'list-global-variables' => self::tool(
+			'list-global-variables'  => self::tool(
 				'List global variables',
 				'List global colors, sizes, and font families. Use css_var in element CSS, for example color:var(--the-id).',
 				true,
@@ -507,7 +530,7 @@ class Abilities {
 				false,
 				'edit_theme_options'
 			),
-			'set-global-variables'  => self::tool(
+			'set-global-variables'   => self::tool(
 				'Set global colors, fonts, and sizes',
 				'Create or update global design variables by name. Colors are hex or rgb(). Fonts are family names. Sizes need a number and a unit. Existing names are updated.',
 				false,
@@ -573,7 +596,7 @@ class Abilities {
 				false,
 				'edit_theme_options'
 			),
-			'upload-media'          => self::tool(
+			'upload-media'           => self::tool(
 				'Upload an image',
 				'Upload an image through WordPress core POST /wp/v2/media, authenticated as the current user. Kirki 6.4.2 uploads media through admin-ajax with a browser nonce, which an application password cannot send, and its REST API only lists media. Pass the returned id as attachment_id and url as src on an image element. data_base64 is the raw file with no data: prefix. Limited to 5 MB images.',
 				false,
@@ -598,7 +621,7 @@ class Abilities {
 				false,
 				'upload_files'
 			),
-			'list-symbols'          => self::tool(
+			'list-symbols'           => self::tool(
 				'List symbols',
 				'List Kirki symbols. set_as is header, footer, or empty for a reusable component.',
 				true,
@@ -608,7 +631,7 @@ class Abilities {
 				),
 				array( self::class, 'list_symbols' )
 			),
-			'get-symbol'            => self::tool(
+			'get-symbol'             => self::tool(
 				'Read a symbol',
 				'Read one symbol, including its element tree.',
 				true,
@@ -623,7 +646,7 @@ class Abilities {
 				),
 				array( self::class, 'get_symbol' )
 			),
-			'create-symbol'         => self::tool(
+			'create-symbol'          => self::tool(
 				'Create a symbol',
 				'Create a symbol from sections. Set role to header or footer to use it as the site header or footer. Kirki allows one header and one footer; the previous symbol in that role is unassigned.',
 				false,
@@ -648,7 +671,7 @@ class Abilities {
 				),
 				array( self::class, 'create_symbol' )
 			),
-			'update-symbol'         => self::tool(
+			'update-symbol'          => self::tool(
 				'Update a symbol',
 				'Rename a symbol, change whether it is the header or footer, or replace its sections. Omit sections to keep the current design.',
 				false,
@@ -675,7 +698,7 @@ class Abilities {
 				array( self::class, 'update_symbol' ),
 				true
 			),
-			'list-templates'        => self::tool(
+			'list-templates'         => self::tool(
 				'List Kirki templates',
 				'List kirki_template posts. Applying a template ZIP is not available in this version.',
 				true,
@@ -924,6 +947,29 @@ class Abilities {
 					function ( Document $document ) use ( $input ) {
 						$document->update_styles( (string) $input['element_id'], $input['styles'] );
 						return array();
+					},
+					! empty( $input['convert'] )
+				);
+			}
+		);
+	}
+
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
+	public static function reapply_global_classes( $input ) {
+		return self::guard(
+			function () use ( $input ) {
+				return self::mutate(
+					(int) $input['page_id'],
+					function ( Document $document ) use ( $input ) {
+						$count = $document->release_class_defaults( ! empty( $input['clear_local'] ) );
+						return array( 'elements' => $count );
 					},
 					! empty( $input['convert'] )
 				);
@@ -1220,6 +1266,9 @@ class Abilities {
 				if ( 'delete_pages' === $capability ) {
 					return Access::can_build();
 				}
+				if ( 'unfiltered_html' === $capability ) {
+					return Access::can_edit_custom_code();
+				}
 				return Access::can_build();
 			},
 			'meta'                => array(
@@ -1289,6 +1338,14 @@ class Abilities {
 				'ordered'       => array(
 					'type'        => 'boolean',
 					'description' => 'True renders a numbered list.',
+				),
+				'submit'        => array(
+					'type'        => 'boolean',
+					'description' => 'True makes a button submit the form that contains it.',
+				),
+				'submit_label'  => array(
+					'type'        => 'string',
+					'description' => 'Label of the submit button a form adds automatically. Default Send.',
 				),
 				'text'          => array(
 					'type' => 'string',

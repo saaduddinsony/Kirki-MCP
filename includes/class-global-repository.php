@@ -203,26 +203,20 @@ class Global_Repository {
 	 */
 	public static function register_font( $family, $url ) {
 		Page_Repository::assert_ready();
+		$safe   = Css::google_font_url( $family, $url );
 		$family = trim( (string) $family );
-		if ( ! preg_match( '/^[A-Za-z0-9][A-Za-z0-9 -]{0,60}$/', $family ) ) {
-			throw new \InvalidArgumentException( 'Font family names may contain letters, numbers, spaces, and hyphens.' );
-		}
-		$parts = wp_parse_url( (string) $url );
-		if ( ! is_array( $parts ) || ( $parts['scheme'] ?? '' ) !== 'https' || ( $parts['host'] ?? '' ) !== 'fonts.googleapis.com' ) {
-			throw new \InvalidArgumentException( 'Only https://fonts.googleapis.com stylesheets can be registered.' );
-		}
-		$fonts = \Kirki\App\Supports\Facades\GlobalData::get_global_custom_fonts();
+		$fonts  = \Kirki\App\Supports\Facades\GlobalData::get_global_custom_fonts();
 		if ( ! is_array( $fonts ) ) {
 			$fonts = array();
 		}
 		$fonts[ $family ] = array(
 			'family'  => $family,
-			'fontUrl' => (string) $url,
+			'fontUrl' => $safe,
 		);
 		\Kirki\App\Supports\Facades\GlobalData::update_global_custom_fonts( $fonts );
 		return array(
 			'family'   => $family,
-			'font_url' => (string) $url,
+			'font_url' => $safe,
 		);
 	}
 

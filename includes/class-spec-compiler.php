@@ -317,7 +317,20 @@ class Spec_Compiler {
 		}
 
 		if ( 'form' === $type ) {
-			$block['children']         = self::form_fields( isset( $spec['fields'] ) ? $spec['fields'] : array(), $id, $blocks, $styles, $keys, $count );
+			$child_ids                 = self::form_fields( isset( $spec['fields'] ) ? $spec['fields'] : array(), $id, $blocks, $styles, $keys, $count );
+			$child_ids[]               = self::compile_element(
+				array(
+					'type'   => 'button',
+					'text'   => isset( $spec['submit_label'] ) ? $spec['submit_label'] : 'Send',
+					'submit' => true,
+				),
+				$id,
+				$blocks,
+				$styles,
+				$keys,
+				$count
+			);
+			$block['children']         = $child_ids;
 			$block['template_mounted'] = true;
 		}
 
@@ -500,6 +513,17 @@ class Spec_Compiler {
 					),
 				);
 			case 'button':
+				if ( ! empty( $spec['submit'] ) ) {
+					return array(
+						'tag'        => 'button',
+						'attributes' => array(
+							'type'   => 'submit',
+							'href'   => '',
+							'target' => '',
+						),
+					);
+				}
+				// Fall through to the link button.
 			case 'link-block':
 				$href = self::href_for( $spec, $keys );
 				$link = array(
@@ -649,6 +673,61 @@ class Spec_Compiler {
 			$out[] = $part;
 		}
 		return implode( ';', $out ) . ';';
+	}
+
+	/**
+	 * Drop Kirki's default declarations for one element type and variant.
+	 *
+	 * @param string $type Element name.
+	 * @param string $variant Variant key.
+	 * @param string $css Stored declarations.
+	 * @return string
+	 */
+	public static function without_defaults( $type, $variant, $css ) {
+		$defaults = self::default_variants();
+		$drop     = array();
+		if ( isset( $defaults[ $type ][ $variant ] ) ) {
+			foreach ( self::declaration_list( $defaults[ $type ][ $variant ] ) as $declaration ) {
+				$drop[ self::normalize_declaration( $declaration ) ] = true;
+			}
+		}
+		$kept = array();
+		foreach ( self::declaration_list( $css ) as $declaration ) {
+			if ( isset( $drop[ self::normalize_declaration( $declaration ) ] ) ) {
+				continue;
+			}
+			$kept[] = $declaration;
+		}
+		return $kept ? implode( ';', $kept ) . ';' : '';
+	}
+
+	/**
+	 * Split a declaration list.
+	 *
+	 * @param string $css CSS.
+	 * @return string[]
+	 */
+	private static function declaration_list( $css ) {
+		$parts = explode( ';', (string) $css );
+		$out   = array();
+		foreach ( $parts as $part ) {
+			$part = trim( $part );
+			if ( '' !== $part ) {
+				$out[] = $part;
+			}
+		}
+		return $out;
+	}
+
+	/**
+	 * Compare declarations without insignificant whitespace.
+	 *
+	 * @param string $declaration One declaration.
+	 * @return string
+	 */
+	private static function normalize_declaration( $declaration ) {
+		$declaration = strtolower( preg_replace( '/\s+/', '', (string) $declaration ) );
+		return str_replace( '!important', '', $declaration );
 	}
 
 	/**
