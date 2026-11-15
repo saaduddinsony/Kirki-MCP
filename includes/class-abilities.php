@@ -698,6 +698,17 @@ class Abilities {
 				array( self::class, 'update_symbol' ),
 				true
 			),
+			'audit-unsafe-titles'    => self::tool(
+				'Audit unsafe titles',
+				'Read-only. Lists Kirki pages and symbols whose stored section titles or symbol names still contain characters Kirki would print unescaped in an HTML id. It does not change them. Saving the page or symbol slugs those titles.',
+				true,
+				array(
+					'type'       => 'object',
+					'properties' => array(),
+				),
+				array( self::class, 'audit_unsafe_titles' ),
+				true
+			),
 			'list-templates'         => self::tool(
 				'List Kirki templates',
 				'List kirki_template posts. Applying a template ZIP is not available in this version.',
@@ -1181,6 +1192,20 @@ class Abilities {
 					isset( $input['name'] ) ? $input['name'] : null,
 					isset( $input['role'] ) ? $input['role'] : null,
 					isset( $input['sections'] ) && is_array( $input['sections'] ) ? $input['sections'] : null
+				);
+			}
+		);
+	}
+
+	/**
+	 * @return array|\WP_Error
+	 */
+	public static function audit_unsafe_titles() {
+		return self::guard(
+			function () {
+				return array(
+					'pages'   => Page_Repository::audit_unsafe_titles(),
+					'symbols' => Symbol_Repository::audit_unsafe_titles(),
 				);
 			}
 		);

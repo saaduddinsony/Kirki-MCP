@@ -39,7 +39,7 @@ class Plugin {
 	 * @param bool   $single Whether a single value was requested.
 	 * @return mixed
 	 */
-	public static function escape_stored_font_urls( $value, $object_id, $meta_key, $single ) {
+	public static function escape_stored_font_urls( $value, $object_id, $meta_key, $single ) { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed -- WordPress passes $single; the return shape covers both.
 		if ( 'kirki_user_custom_fonts' !== $meta_key || null !== $value ) {
 			return $value;
 		}
@@ -50,14 +50,11 @@ class Plugin {
 			return $value;
 		}
 		foreach ( $fonts as $key => $font ) {
-			if ( is_array( $font ) && isset( $font['fontUrl'] ) && is_string( $font['fontUrl'] ) ) {
-				$fonts[ $key ]['fontUrl'] = Css::escape_font_url( $font['fontUrl'] );
+			if ( is_array( $font ) ) {
+				$fonts[ $key ] = Css::escape_font_record( $font );
 			}
 		}
-		// WordPress returns index 0 when $single is true, and the list otherwise.
-		if ( $single ) {
-			return array( $fonts );
-		}
+		// WordPress returns index 0 of this list when $single is true.
 		return array( $fonts );
 	}
 }

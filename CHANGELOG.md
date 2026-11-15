@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.3
+
+- Font stylesheet output escapes `localUrl` as well as `fontUrl`. `&#038;` in a stored URL is decoded back to `&` before escaping, so a later read does not keep the HTML entity.
+- Every page save and every symbol save slugs stored section titles and symbol names, including `update-symbol` when no new name is sent and `duplicate-page`.
+- `audit-unsafe-titles` lists pages and symbols whose stored titles still fail that rule. It does not change them.
+- A key on a form field is not reserved. Explicit anchors are rejected when they match an id Kirki would assign by numbering repeated titles, such as `card-1`.
+- Accented Latin titles are transliterated (`Café` stays `Cafe`). A title with no Latin letters becomes `section-N`.
+- A `<style>` tag may only carry a `media` value made of letters, numbers, and CSS media punctuation, and that value is escaped.
+
 ## 0.2.2
 
 - Section titles and symbol names keep only letters, numbers, spaces, dots, underscores, and hyphens. Kirki prints those titles as HTML ids without escaping.

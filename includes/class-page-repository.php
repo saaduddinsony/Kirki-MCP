@@ -116,9 +116,10 @@ class Page_Repository {
 	 * @param int      $page_id Page id.
 	 * @param Document $document Document.
 	 * @param int|null $stage Unpublished stage, or null for post meta.
+	 * @param bool     $allow_auto_stage Open a stage for an already published page.
 	 * @return void
 	 */
-	public static function save( $page_id, Document $document, $stage ) {
+	public static function save( $page_id, Document $document, $stage, $allow_auto_stage = true ) {
 		self::assert_ready();
 		$page_id = (int) $page_id;
 		$post    = get_post( $page_id );
@@ -126,9 +127,11 @@ class Page_Repository {
 			throw new \InvalidArgumentException( 'Page ' . $page_id . ' was not found.' );
 		}
 
+		$document->sanitize_stored_titles();
+		$document->assert_unique_anchors();
 		$document->validate( Global_Repository::class_id_list() );
 		$stage_arg = $stage ? (int) $stage : null;
-		if ( null === $stage_arg && 'publish' === $post->post_status ) {
+		if ( null === $stage_arg && $allow_auto_stage && 'publish' === $post->post_status ) {
 			$stage_arg = self::open_unpublished_stage( $page_id );
 		}
 
@@ -445,7 +448,115 @@ class Page_Repository {
 				update_post_meta( $copy_id, $key, $value );
 			}
 		}
+		self::clean_titles_in_place( $copy_id );
 		return $copy_id;
+	}
+
+	/**
+	 * Slug section titles already stored on a page, in published meta and in an open stage.
+	 *
+	 * @param int $page_id Page id.
+	 * @return void
+	 */
+	public static function clean_titles_in_place( $page_id ) {
+		self::clean_meta_titles( $page_id );
+		$stage = self::unpublished_stage( $page_id );
+		if ( $stage && class_exists( '\Kirki\App\Supports\Facades\Page' ) ) {
+			$blocks = \Kirki\App\Supports\Facades\Page::read_page_meta( (int) $page_id, 'kirki', (int) $stage, array() );
+			$styles = \Kirki\App\Supports\Facades\Page::read_page_meta( (int) $page_id, 'kirki_global_style_block_random', (int) $stage, array() );
+			$clean  = self::cleaned_block_meta( $blocks, $styles );
+			if ( null !== $clean ) {
+				\Kirki\App\Supports\Facades\Page::write_page_meta( (int) $page_id, 'kirki', $clean, (int) $stage );
+			}
+		}
+	}
+
+	/**
+	 * Pages and symbols whose stored titles are not safe HTML ids.
+	 *
+	 * @return array
+	 */
+	public static function audit_unsafe_titles() {
+		self::assert_ready();
+		$pages = array();
+		$query = new \WP_Query(
+			array(
+				'post_type'      => 'page',
+				'post_status'    => array( 'publish', 'draft', 'private', 'pending', 'future' ),
+				'posts_per_page' => 100,
+				'fields'         => 'ids',
+				'meta_query'     => array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- one audit pass, at most 100 pages.
+					array(
+						'key'   => 'kirki_editor_mode',
+						'value' => 'kirki',
+					),
+				),
+			)
+		);
+		foreach ( $query->posts as $page_id ) {
+			if ( ! current_user_can( 'edit_post', $page_id ) ) {
+				continue;
+			}
+			try {
+				$loaded = self::load( $page_id );
+			} catch ( \Throwable $error ) {
+				$pages[] = array(
+					'id'       => (int) $page_id,
+					'title'    => get_the_title( $page_id ),
+					'error'    => $error->getMessage(),
+					'elements' => array(),
+				);
+				continue;
+			}
+			$unsafe = $loaded['document']->unsafe_titles();
+			if ( ! $unsafe ) {
+				continue;
+			}
+			$pages[] = array(
+				'id'       => (int) $page_id,
+				'title'    => get_the_title( $page_id ),
+				'elements' => $unsafe,
+			);
+		}
+		return $pages;
+	}
+
+	/**
+	 * @param int $page_id Page id.
+	 * @return void
+	 */
+	private static function clean_meta_titles( $page_id ) {
+		$blocks = get_post_meta( $page_id, 'kirki', true );
+		$styles = get_post_meta( $page_id, 'kirki_global_style_block_random', true );
+		$clean  = self::cleaned_block_meta( $blocks, $styles );
+		if ( null !== $clean ) {
+			update_post_meta( $page_id, 'kirki', $clean );
+		}
+	}
+
+	/**
+	 * @param mixed $blocks Stored kirki meta.
+	 * @param mixed $styles Stored styles.
+	 * @return array|null Rewritten meta, or null when there is nothing to clean.
+	 */
+	private static function cleaned_block_meta( $blocks, $styles ) {
+		if ( ! is_array( $blocks ) ) {
+			return null;
+		}
+		try {
+			$document = Document::from_stored( $blocks, is_array( $styles ) ? $styles : array() );
+		} catch ( \Throwable $error ) {
+			unset( $error );
+			return null;
+		}
+		if ( 0 === $document->sanitize_stored_titles() ) {
+			return null;
+		}
+		if ( isset( $blocks['blocks'] ) && is_array( $blocks['blocks'] ) ) {
+			$blocks['blocks'] = $document->blocks;
+			return $blocks;
+		}
+		return $document->blocks;
 	}
 
 	/**

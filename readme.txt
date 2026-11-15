@@ -4,7 +4,7 @@ Tags: kirki, mcp, ai, page-builder, abilities
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.2.2
+Stable tag: 0.2.3
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -52,6 +52,11 @@ Kirki 6.4.x only. It was tested with 6.4.2. Kirki 6.5 and 7 are not supported. F
 Yes, with `kirki-mcp/publish-page`, and only when the user can publish pages.
 
 == Changelog ==
+
+= 0.2.3 =
+* Stored font localUrl values are escaped as well as fontUrl, and &#038; is decoded back to &.
+* Saving a page or symbol slugs section titles that were stored earlier. audit-unsafe-titles lists any that remain.
+* Explicit anchors no longer collide with ids Kirki numbers from repeated titles, such as card-1.
 
 = 0.2.2 =
 * Section titles and symbol names can no longer break out of Kirki's HTML id attribute.

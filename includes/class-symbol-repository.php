@@ -29,6 +29,92 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Symbol_Repository {
 
 	/**
+	 * Slug a stored symbol name and its section titles.
+	 *
+	 * @param array  $data Symbol meta.
+	 * @param string $post_title Post title used when the meta name is empty.
+	 * @return array
+	 */
+	public static function prepare_record( array $data, $post_title = '' ) {
+		$name = '';
+		if ( ! empty( $data['name'] ) ) {
+			$name = Spec_Compiler::safe_label( $data['name'] );
+		}
+		if ( '' === $name && '' !== (string) $post_title ) {
+			$name = Spec_Compiler::safe_label( $post_title );
+		}
+		if ( '' === $name ) {
+			$name = 'Symbol';
+		}
+		$data['name'] = $name;
+		$root         = isset( $data['root'] ) ? (string) $data['root'] : 'root';
+		if ( isset( $data['data'] ) && is_array( $data['data'] ) && isset( $data['data'][ $root ] ) ) {
+			try {
+				$document = Document::from_symbol(
+					$data['data'],
+					isset( $data['styleBlocks'] ) && is_array( $data['styleBlocks'] ) ? $data['styleBlocks'] : array(),
+					$root
+				);
+				$document->sanitize_stored_titles();
+				if ( isset( $document->blocks[ $root ] ) ) {
+					$document->blocks[ $root ]['title'] = $name;
+				}
+				$data['data'] = $document->blocks;
+			} catch ( \Throwable $error ) {
+				unset( $error );
+				$data['data'][ $root ]['title'] = $name;
+			}
+		}
+		return $data;
+	}
+
+	/**
+	 * Symbols whose names or section titles are not safe HTML ids.
+	 *
+	 * @return array
+	 */
+	public static function audit_unsafe_titles() {
+		Page_Repository::assert_ready();
+		$posts = get_posts(
+			array(
+				'post_type'   => 'kirki_symbol',
+				'post_status' => array( 'draft', 'publish', 'private' ),
+				'numberposts' => 100,
+			)
+		);
+		$items = array();
+		foreach ( $posts as $post ) {
+			$data  = self::read_meta( $post->ID );
+			$name  = ! empty( $data['name'] ) ? (string) $data['name'] : (string) $post->post_title;
+			$safe  = Spec_Compiler::safe_label( $name );
+			$root  = isset( $data['root'] ) ? (string) $data['root'] : 'root';
+			$extra = array();
+			if ( isset( $data['data'] ) && is_array( $data['data'] ) && isset( $data['data'][ $root ] ) ) {
+				try {
+					$document = Document::from_symbol(
+						$data['data'],
+						isset( $data['styleBlocks'] ) && is_array( $data['styleBlocks'] ) ? $data['styleBlocks'] : array(),
+						$root
+					);
+					$extra    = $document->unsafe_titles();
+				} catch ( \Throwable $error ) {
+					unset( $error );
+				}
+			}
+			if ( $name === $safe && ! $extra ) {
+				continue;
+			}
+			$items[] = array(
+				'id'        => (int) $post->ID,
+				'name'      => $name,
+				'safe_name' => '' === $safe ? 'Symbol' : $safe,
+				'elements'  => $extra,
+			);
+		}
+		return $items;
+	}
+
+	/**
 	 * Compact list.
 	 *
 	 * @return array
@@ -95,6 +181,7 @@ class Symbol_Repository {
 		$built             = self::validated_symbol( 0, $name, $set_as, $sections );
 		$built['setAs']    = '';
 		$built['category'] = 'other';
+		$built             = self::prepare_record( $built, $name );
 		if ( ! class_exists( '\Kirki\App\Managers\SymbolManager' ) || ! class_exists( '\Kirki\App\DTO\Symbol\SymbolDTO' ) ) {
 			throw new \RuntimeException( 'Kirki SymbolManager is not available.' );
 		}
@@ -142,26 +229,27 @@ class Symbol_Repository {
 			throw new \InvalidArgumentException( 'That symbol has no Kirki data.' );
 		}
 
+		$data = self::prepare_record( $data, $post->post_title );
 		if ( null !== $name && '' !== $name ) {
-			$name         = self::name( $name );
-			$data['name'] = $name;
-			wp_update_post(
-				array(
-					'ID'         => $post->ID,
-					'post_title' => $name,
-				)
-			);
+			$data['name'] = self::name( $name );
 		}
+		wp_update_post(
+			array(
+				'ID'         => $post->ID,
+				'post_title' => $data['name'],
+			)
+		);
 
 		$next_role = isset( $data['setAs'] ) ? $data['setAs'] : '';
 		if ( null !== $role ) {
 			$next_role = self::role( $role );
 		}
 		if ( null !== $sections ) {
-			$built               = self::validated_symbol( $post->ID, isset( $data['name'] ) ? $data['name'] : $post->post_title, $next_role, $sections );
+			$built               = self::validated_symbol( $post->ID, $data['name'], $next_role, $sections );
 			$data['data']        = $built['data'];
 			$data['styleBlocks'] = $built['styleBlocks'];
 			$data['root']        = 'root';
+			$data                = self::prepare_record( $data, $data['name'] );
 		}
 		$data['setAs']    = '';
 		$data['category'] = 'other';

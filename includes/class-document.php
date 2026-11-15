@@ -419,28 +419,100 @@ class Document {
 	 * @return void
 	 */
 	public function assert_unique_anchors() {
-		$explicit    = array();
-		$title_slugs = array();
+		$used = array();
+		$seen = array();
+		$this->number_sections( 'root', $used, $seen );
+	}
+
+	/**
+	 * Replace stored section titles that Kirki would print unsafely.
+	 *
+	 * @return int How many titles changed.
+	 */
+	public function sanitize_stored_titles() {
+		$changed  = 0;
+		$fallback = 0;
 		foreach ( $this->blocks as $id => $block ) {
-			$slug = $this->explicit_anchor( $block );
-			if ( '' !== $slug ) {
-				if ( isset( $explicit[ $slug ] ) ) {
-					throw new \InvalidArgumentException( 'The anchor "' . $slug . '" is already used. Each explicit HTML id must be unique.' );
-				}
-				$explicit[ $slug ] = $id;
+			if ( ! isset( $block['name'] ) || 'section' !== $block['name'] ) {
 				continue;
 			}
-			if ( isset( $block['name'] ) && 'section' === $block['name'] && ! empty( $block['title'] ) ) {
-				$title = Spec_Compiler::anchor_slug( $block['title'] );
-				if ( '' !== $title && 'section' !== $title ) {
-					$title_slugs[ $title ][] = $id;
-				}
+			$raw  = isset( $block['title'] ) ? (string) $block['title'] : '';
+			$safe = Spec_Compiler::safe_label( $raw );
+			if ( '' === $safe ) {
+				++$fallback;
+				$safe = 'section-' . $fallback;
+			}
+			if ( $safe === $raw ) {
+				continue;
+			}
+			$this->blocks[ $id ]['title'] = $safe;
+			if ( ! empty( $block['properties']['explicitAnchor'] ) ) {
+				$this->blocks[ $id ]['properties']['explicitAnchor'] = Spec_Compiler::anchor_slug( $safe );
+			}
+			++$changed;
+		}
+		return $changed;
+	}
+
+	/**
+	 * Section titles that are not safe to print as an HTML id.
+	 *
+	 * @return array
+	 */
+	public function unsafe_titles() {
+		$found = array();
+		foreach ( $this->blocks as $id => $block ) {
+			if ( ! isset( $block['name'] ) || 'section' !== $block['name'] ) {
+				continue;
+			}
+			$title = isset( $block['title'] ) ? (string) $block['title'] : '';
+			$safe  = Spec_Compiler::safe_label( $title );
+			if ( $title === $safe ) {
+				continue;
+			}
+			$found[] = array(
+				'id'         => (string) $id,
+				'title'      => $title,
+				'safe_title' => $safe,
+			);
+		}
+		return $found;
+	}
+
+	/**
+	 * Assign ids the way Kirki does, and reject an explicit anchor that would be renumbered.
+	 *
+	 * @param string $id Element id.
+	 * @param array  $used Ids already assigned.
+	 * @param array  $seen Elements already walked.
+	 * @return void
+	 */
+	private function number_sections( $id, array &$used, array &$seen ) {
+		if ( isset( $seen[ $id ] ) || ! isset( $this->blocks[ $id ] ) || ! is_array( $this->blocks[ $id ] ) ) {
+			return;
+		}
+		$seen[ $id ] = true;
+		$block       = $this->blocks[ $id ];
+		if ( isset( $block['name'] ) && 'section' === $block['name'] ) {
+			$wanted = $this->explicit_anchor( $block );
+			$slug   = '' !== $wanted ? $wanted : Spec_Compiler::anchor_slug( isset( $block['title'] ) ? $block['title'] : '' );
+			if ( '' === $slug ) {
+				$slug = 'section';
+			}
+			$href = $slug;
+			$n    = 1;
+			while ( isset( $used[ $href ] ) ) {
+				$href = $slug . '-' . $n;
+				++$n;
+			}
+			$used[ $href ] = $id;
+			if ( '' !== $wanted && $href !== $wanted ) {
+				throw new \InvalidArgumentException( 'The anchor "' . $wanted . '" clashes with an id Kirki assigns by numbering repeated titles.' );
 			}
 		}
-		foreach ( $explicit as $slug => $id ) {
-			if ( ! empty( $title_slugs[ $slug ] ) ) {
-				throw new \InvalidArgumentException( 'The anchor "' . $slug . '" matches a section title. Kirki would give them the same HTML id.' );
-			}
+		$children = isset( $block['children'] ) && is_array( $block['children'] ) ? $block['children'] : array();
+		foreach ( $children as $child_id ) {
+			$this->number_sections( $child_id, $used, $seen );
 		}
 	}
 

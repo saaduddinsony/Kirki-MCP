@@ -135,9 +135,48 @@ class Css {
 		}
 		$out = '';
 		foreach ( $matches[2] as $index => $css ) {
-			$out .= '<style' . $matches[1][ $index ] . '>' . self::sanitize_stylesheet( $css ) . '</style>';
+			$out .= '<style' . self::style_attributes( $matches[1][ $index ] ) . '>' . self::sanitize_stylesheet( $css ) . '</style>';
 		}
 		return $out;
+	}
+
+	/**
+	 * Keep only a safe media attribute on a style tag.
+	 *
+	 * @param string $raw Attribute string captured from the tag.
+	 * @return string
+	 */
+	private static function style_attributes( $raw ) {
+		$raw = trim( (string) $raw );
+		if ( '' === $raw ) {
+			return '';
+		}
+		if ( ! preg_match( '/^(?:(?:type|media)\s*=\s*(?:"[^"<>]*"|\'[^\'<>]*\')\s*)+$/i', $raw ) ) {
+			throw new \InvalidArgumentException( 'A style tag may only use a media attribute.' );
+		}
+		preg_match_all( '/(type|media)\s*=\s*(?:"([^"<>]*)"|\'([^\'<>]*)\')/i', $raw, $found, PREG_SET_ORDER );
+		if ( ! $found ) {
+			throw new \InvalidArgumentException( 'A style tag may only use a media attribute.' );
+		}
+		$media = '';
+		foreach ( $found as $attr ) {
+			$name  = strtolower( $attr[1] );
+			$value = '' !== $attr[2] ? $attr[2] : $attr[3];
+			if ( 'type' === $name ) {
+				if ( 'text/css' !== strtolower( $value ) ) {
+					throw new \InvalidArgumentException( 'A style tag type must be text/css.' );
+				}
+				continue;
+			}
+			if ( ! preg_match( '/^[A-Za-z0-9 (),:.-]+$/', $value ) ) {
+				throw new \InvalidArgumentException( 'A style media value may only contain letters, numbers, spaces, and CSS media punctuation.' );
+			}
+			$media = htmlspecialchars( $value, ENT_QUOTES, 'UTF-8' );
+		}
+		if ( '' === $media ) {
+			return '';
+		}
+		return ' media="' . $media . '"';
 	}
 
 	/**
@@ -219,11 +258,27 @@ class Css {
 	 * @return string
 	 */
 	public static function escape_font_url( $url ) {
-		$url = (string) $url;
-		if ( function_exists( 'esc_url' ) ) {
-			return esc_url( $url );
+		$url = str_replace( array( '&#038;', '&amp;', '&#38;' ), '&', (string) $url );
+		if ( function_exists( 'esc_url_raw' ) ) {
+			$safe = esc_url_raw( $url );
+			return is_string( $safe ) ? $safe : '';
 		}
 		return preg_replace( '/["\'<>\s\\\\]/', '', $url );
+	}
+
+	/**
+	 * Escape both URLs Kirki may print for one custom font.
+	 *
+	 * @param array $font Font record.
+	 * @return array
+	 */
+	public static function escape_font_record( array $font ) {
+		foreach ( array( 'fontUrl', 'localUrl' ) as $field ) {
+			if ( isset( $font[ $field ] ) && is_string( $font[ $field ] ) ) {
+				$font[ $field ] = self::escape_font_url( $font[ $field ] );
+			}
+		}
+		return $font;
 	}
 
 	/**

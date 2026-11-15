@@ -8,6 +8,7 @@
 use KirkiMCP\Css;
 use KirkiMCP\Document;
 use KirkiMCP\Spec_Compiler;
+use KirkiMCP\Symbol_Repository;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -489,5 +490,139 @@ class FixesTest extends TestCase {
 		}
 		$document->update_element( $link, array( 'href' => '/about' ) );
 		$this->assertSame( '/about', $document->blocks[ $link ]['properties']['attributes']['href'] );
+	}
+
+	/**
+	 * A stored localUrl cannot break out of Kirki's link tag, and entities are decoded.
+	 */
+	public function test_stored_font_local_url_is_escaped() {
+		$font = Css::escape_font_record(
+			array(
+				'fontUrl'  => 'https://fonts.googleapis.com/css2?family=Inter&#038;display=swap',
+				'localUrl' => 'x.css" onload="alert(1)',
+			)
+		);
+		$this->assertStringNotContainsString( '"', $font['localUrl'] );
+		$this->assertStringNotContainsString( ' ', $font['localUrl'] );
+		$this->assertStringNotContainsString( '&#038;', $font['fontUrl'] );
+		$this->assertStringContainsString( '&display=swap', $font['fontUrl'] );
+	}
+
+	/**
+	 * Saving slugs a section title that was stored before the input check existed.
+	 */
+	public function test_stored_section_titles_are_slugged_on_clean() {
+		$payload  = 'x"/tabindex="1"/autofocus/onfocus="alert(document.domain)';
+		$document = Document::from_sections(
+			array(
+				array(
+					'title' => 'Card',
+				),
+			)
+		);
+		$section                           = $document->blocks['body']['children'][0];
+		$document->blocks[ $section ]['title'] = $payload;
+		$document->sanitize_stored_titles();
+		$this->assertStringNotContainsString( '"', $document->blocks[ $section ]['title'] );
+		$this->assertStringNotContainsString( '/', $document->blocks[ $section ]['title'] );
+		$unsafe = $document->unsafe_titles();
+		$this->assertSame( array(), $unsafe );
+	}
+
+	/**
+	 * A symbol record is slugged even when the caller does not send a new name.
+	 */
+	public function test_symbol_record_slugs_a_stored_name() {
+		$record = Symbol_Repository::prepare_record(
+			array(
+				'name' => 'x"/onload="alert(1)',
+				'root' => 'root',
+				'data' => array(
+					'root' => array(
+						'id'         => 'root',
+						'name'       => 'section',
+						'title'      => 'x"/onload="alert(1)',
+						'parentId'   => '',
+						'children'   => array(),
+						'properties' => array( 'tag' => 'header' ),
+					),
+				),
+			)
+		);
+		$this->assertStringNotContainsString( '"', $record['name'] );
+		$this->assertStringNotContainsString( '"', $record['data']['root']['title'] );
+		$this->assertSame( $record['name'], $record['data']['root']['title'] );
+	}
+
+	/**
+	 * Accented Latin is kept as ASCII. A title with no Latin letters becomes section-N.
+	 */
+	public function test_non_latin_titles_transliterate_or_fall_back() {
+		$this->assertSame( 'Cafe', Spec_Compiler::safe_label( 'Café' ) );
+		$document = Document::from_sections(
+			array(
+				array(
+					'title' => 'বাংলা',
+				),
+			)
+		);
+		$section = $document->blocks['body']['children'][0];
+		$this->assertSame( 'section-1', $document->blocks[ $section ]['title'] );
+	}
+
+	/**
+	 * card-1 is the id Kirki gives the second "Card", so an explicit anchor cannot take it.
+	 */
+	public function test_explicit_anchor_avoids_numbered_repeats() {
+		$ok = Document::from_sections(
+			array(
+				array( 'title' => 'Card' ),
+				array( 'anchor' => 'card-1' ),
+			)
+		);
+		$this->assertCount( 2, $ok->blocks['body']['children'] );
+		$this->expectException( InvalidArgumentException::class );
+		Document::from_sections(
+			array(
+				array( 'title' => 'Card' ),
+				array( 'title' => 'Card' ),
+				array( 'anchor' => 'card-1' ),
+			)
+		);
+	}
+
+	/**
+	 * A key on a form field is not reserved, because the field is not an element.
+	 */
+	public function test_form_field_keys_are_not_reserved() {
+		$document = Document::from_sections(
+			array(
+				array(
+					'elements' => array(
+						array(
+							'type'   => 'form',
+							'email'  => 'hello@example.com',
+							'fields' => array(
+								array(
+									'key'   => 'email-field',
+									'name'  => 'email',
+									'label' => 'Email',
+									'type'  => 'email',
+								),
+							),
+						),
+					),
+				),
+			)
+		);
+		$this->assertArrayNotHasKey( 'email-field', $document->keys );
+	}
+
+	/**
+	 * A media value cannot smuggle another attribute.
+	 */
+	public function test_style_media_value_is_restricted() {
+		$this->expectException( InvalidArgumentException::class );
+		Css::head_style_blocks( '<style media=\'a" onload="alert(1)\'>body{color:red}</style>' );
 	}
 }

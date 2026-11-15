@@ -93,6 +93,7 @@ class Spec_Compiler {
 
 		$keys  = array();
 		$count = 0;
+		self::reset_section_fallbacks();
 		self::reserve_keys( $sections, $keys, true );
 
 		$blocks   = array();
@@ -125,6 +126,7 @@ class Spec_Compiler {
 	public static function compile_element_tree( array $spec, $parent_id ) {
 		$keys  = array();
 		$count = 0;
+		self::reset_section_fallbacks();
 		self::reserve_keys( array( $spec ), $keys, false );
 
 		$blocks = array();
@@ -165,9 +167,106 @@ class Spec_Compiler {
 	 */
 	public static function safe_label( $text ) {
 		$text = self::plain_text( $text );
+		$text = self::transliterate( $text );
 		$text = preg_replace( '/[^A-Za-z0-9 _.-]/', '', $text );
 		return trim( preg_replace( '/\s+/', ' ', $text ) );
 	}
+
+	/**
+	 * Fold Latin accents into ASCII. Other scripts are left for the caller to replace.
+	 *
+	 * @param string $text Text.
+	 * @return string
+	 */
+	private static function transliterate( $text ) {
+		$letters = array(
+			'À' => 'A',
+			'Á' => 'A',
+			'Â' => 'A',
+			'Ã' => 'A',
+			'Ä' => 'A',
+			'Å' => 'A',
+			'Æ' => 'AE',
+			'à' => 'a',
+			'á' => 'a',
+			'â' => 'a',
+			'ã' => 'a',
+			'ä' => 'a',
+			'å' => 'a',
+			'æ' => 'ae',
+			'È' => 'E',
+			'É' => 'E',
+			'Ê' => 'E',
+			'Ë' => 'E',
+			'è' => 'e',
+			'é' => 'e',
+			'ê' => 'e',
+			'ë' => 'e',
+			'Ì' => 'I',
+			'Í' => 'I',
+			'Î' => 'I',
+			'Ï' => 'I',
+			'ì' => 'i',
+			'í' => 'i',
+			'î' => 'i',
+			'ï' => 'i',
+			'Ò' => 'O',
+			'Ó' => 'O',
+			'Ô' => 'O',
+			'Õ' => 'O',
+			'Ö' => 'O',
+			'Ø' => 'O',
+			'ò' => 'o',
+			'ó' => 'o',
+			'ô' => 'o',
+			'õ' => 'o',
+			'ö' => 'o',
+			'ø' => 'o',
+			'Ù' => 'U',
+			'Ú' => 'U',
+			'Û' => 'U',
+			'Ü' => 'U',
+			'ù' => 'u',
+			'ú' => 'u',
+			'û' => 'u',
+			'ü' => 'u',
+			'Ý' => 'Y',
+			'ý' => 'y',
+			'ÿ' => 'y',
+			'Ñ' => 'N',
+			'ñ' => 'n',
+			'Ç' => 'C',
+			'ç' => 'c',
+			'ß' => 'ss',
+			'Œ' => 'OE',
+			'œ' => 'oe',
+		);
+		return strtr( $text, $letters );
+	}
+
+	/**
+	 * Next fallback id when a section title has no Latin letters left.
+	 *
+	 * @return string
+	 */
+	public static function fallback_section_title() {
+		++self::$section_fallbacks;
+		return 'section-' . self::$section_fallbacks;
+	}
+
+	/**
+	 * Start fallback numbering again for a new compile.
+	 *
+	 * @return void
+	 */
+	public static function reset_section_fallbacks() {
+		self::$section_fallbacks = 0;
+	}
+
+	/**
+	 * @var int
+	 */
+	private static $section_fallbacks = 0;
 
 	/**
 	 * The HTML id Kirki derives: lower case, spaces become hyphens.
@@ -244,7 +343,7 @@ class Spec_Compiler {
 				$keys[ $key ] = $id;
 				$used[ $id ]  = true;
 			}
-			foreach ( array( 'elements', 'inline', 'items', 'fields' ) as $child_key ) {
+			foreach ( array( 'elements', 'inline', 'items' ) as $child_key ) {
 				if ( ! empty( $spec[ $child_key ] ) && is_array( $spec[ $child_key ] ) ) {
 					self::reserve_keys_into( $spec[ $child_key ], $keys, $used );
 				}
@@ -835,6 +934,9 @@ class Spec_Compiler {
 			if ( '' !== $title ) {
 				return $title;
 			}
+		}
+		if ( 'section' === $type && ! empty( $spec['title'] ) ) {
+			return self::fallback_section_title();
 		}
 		$names = array(
 			'section'    => 'Section',
