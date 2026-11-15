@@ -51,7 +51,7 @@ class SafetyTest extends TestCase {
 	 * The plugin source must not unserialize input or call Kirki's template saver.
 	 */
 	public function test_plugin_source_avoids_unsafe_kirki_entry_points() {
-		$files = glob( dirname( __DIR__ ) . '/includes/*.php' );
+		$files   = glob( dirname( __DIR__ ) . '/includes/*.php' );
 		$files[] = dirname( __DIR__ ) . '/kirki-mcp.php';
 		foreach ( $files as $file ) {
 			$code = file_get_contents( $file );

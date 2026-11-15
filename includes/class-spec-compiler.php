@@ -21,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class Spec_Compiler {
 
-	const MAX_ELEMENTS = 200;
+	const MAX_ELEMENTS = 400;
 	const MAX_SECTIONS = 40;
 
 	/**
@@ -30,7 +30,7 @@ class Spec_Compiler {
 	 * @return string[]
 	 */
 	public static function element_types() {
-		return array( 'section', 'div', 'heading', 'paragraph', 'text', 'button', 'image', 'link-block' );
+		return array( 'section', 'div', 'heading', 'paragraph', 'text', 'button', 'image', 'link-block', 'link-text', 'navigation', 'form' );
 	}
 
 	/**
@@ -40,41 +40,42 @@ class Spec_Compiler {
 	 */
 	public static function schema() {
 		return array(
-			'element_types' => self::element_types(),
-			'style_variants' => array(
-				'md'          => 'Desktop. This is the default viewport.',
-				'tablet'      => 'Tablet.',
-				'mobile'      => 'Phone.',
-				'md_hover'    => 'Desktop hover. tablet_hover and mobile_hover work the same way.',
-				'md_active'   => 'Desktop active.',
+			'element_types'       => self::element_types(),
+			'style_variants'      => Css::variant_vocabulary(),
+			'style_variant_notes' => array(
+				'md'        => 'Desktop. This is the default viewport.',
+				'tablet'    => 'Tablet.',
+				'mobile'    => 'Phone.',
+				'md_hover'  => 'Desktop hover. tablet_hover and mobile_hover work the same way.',
+				'md_active' => 'Desktop active.',
 			),
-			'notes' => array(
+			'notes'               => array(
 				'styles are ordinary CSS declaration lists, such as "color:#fff;padding:24px;". They are appended to Kirki\'s default rules for that element, so later declarations win.',
 				'Give a section or element a key such as "hero" and point a button at it with link_key. The button becomes an in-page link to that section.',
 				'classes is a list of global class names created with upsert-global-class. They are stored on properties.classesIds, which is how Kirki attaches global classes.',
 				'Button labels are stored both on the button and on a child text element, because the editor shows the child and the front end renders it.',
 				'Do not send raw Kirki JSON. Use this spec. The plugin writes the element map Kirki expects.',
 			),
-			'section' => array(
+			'section'             => array(
 				'key'      => 'Optional stable name you can pass to link_key.',
 				'tag'      => 'section, div, main, header, footer, or aside. Default section.',
 				'styles'   => 'Map of variant key to CSS declarations.',
 				'classes'  => 'Global class names.',
 				'elements' => 'Child elements: heading, paragraph, text, button, image, div, link-block, or a nested section.',
 			),
-			'element' => array(
-				'type'    => 'One of the element types.',
-				'text'    => 'Plain text for heading, paragraph, text, and button.',
-				'tag'     => 'Heading level or an allowed tag for the type.',
-				'href'    => 'http(s) URL or site-relative path for button and link-block.',
-				'link_key'=> 'Key of a section on this page.',
-				'target'  => '_self or _blank.',
-				'src'     => 'Image URL.',
-				'alt'     => 'Image alt text.',
+			'element'             => array(
+				'type'          => 'One of the element types.',
+				'text'          => 'Plain text for heading, paragraph, text, and button.',
+				'tag'           => 'Heading level or an allowed tag for the type.',
+				'href'          => 'http(s) URL or site-relative path for button and link-block.',
+				'link_key'      => 'Key of a section on this page.',
+				'target'        => '_self or _blank.',
+				'src'           => 'Image URL.',
+				'alt'           => 'Image alt text.',
 				'attachment_id' => 'WordPress attachment id for an image, when you have one.',
-				'styles'  => 'Variant CSS map.',
-				'classes' => 'Global class names.',
-				'elements'=> 'Children of div, section, and link-block.',
+				'styles'        => 'Variant CSS map.',
+				'classes'       => 'Global class names.',
+				'elements'      => 'Children of div, section, and link-block.',
 			),
 		);
 	}
@@ -145,7 +146,7 @@ class Spec_Compiler {
 	 * @return string
 	 */
 	public static function plain_text( $text ) {
-		$text = trim( preg_replace( '/\s+/', ' ', strip_tags( (string) $text ) ) );
+		$text = trim( preg_replace( '/\s+/', ' ', wp_strip_all_tags( (string) $text ) ) );
 		$text = preg_replace( '/[\x00-\x08\x0B\x0C\x0E-\x1F]/', '', $text );
 		if ( strlen( $text ) > 5000 ) {
 			throw new \InvalidArgumentException( 'Text is longer than 5000 characters.' );
@@ -171,7 +172,7 @@ class Spec_Compiler {
 			'link-block' => array( 'a' ),
 			'image'      => array( 'img' ),
 		);
-		$tag = strtolower( trim( (string) $tag ) );
+		$tag     = strtolower( trim( (string) $tag ) );
 		if ( ! isset( $allowed[ $type ] ) || ! in_array( $tag, $allowed[ $type ], true ) ) {
 			throw new \InvalidArgumentException( 'Tag "' . $tag . '" is not allowed on a ' . $type . '.' );
 		}
@@ -289,8 +290,22 @@ class Spec_Compiler {
 			$block['template_mounted'] = true;
 		}
 
+		if ( in_array( $type, array( 'heading', 'paragraph', 'text' ), true ) && ! empty( $spec['inline'] ) && is_array( $spec['inline'] ) ) {
+			$block['properties']['contents'] = self::inline_contents( $spec['inline'], $id, $blocks, $styles, $keys, $count );
+		}
+
+		if ( 'navigation' === $type ) {
+			$block['children']         = array( self::navigation_items( isset( $spec['items'] ) ? $spec['items'] : array(), $id, $blocks, $styles, $keys, $count ) );
+			$block['template_mounted'] = true;
+		}
+
+		if ( 'form' === $type ) {
+			$block['children']         = self::form_fields( isset( $spec['fields'] ) ? $spec['fields'] : array(), $id, $blocks, $styles, $keys, $count );
+			$block['template_mounted'] = true;
+		}
+
 		if ( 'button' === $type ) {
-			$label    = self::plain_text( isset( $spec['text'] ) ? $spec['text'] : 'Button' );
+			$label = self::plain_text( isset( $spec['text'] ) ? $spec['text'] : 'Button' );
 			if ( '' === $label ) {
 				$label = 'Button';
 			}
@@ -317,8 +332,8 @@ class Spec_Compiler {
 				'id'         => $text_id,
 				'parentId'   => $id,
 			);
-			$block['children']         = array( $text_id );
-			$block['template_mounted'] = true;
+			$block['children']               = array( $text_id );
+			$block['template_mounted']       = true;
 			++$count;
 		}
 
@@ -358,6 +373,69 @@ class Spec_Compiler {
 				return array(
 					'contents' => array( self::plain_text( isset( $spec['text'] ) ? $spec['text'] : '' ) ),
 					'tag'      => 'span',
+				);
+			case 'link-text':
+				$href = self::href_for( $spec, $keys );
+				return array(
+					'contents'   => array( self::plain_text( isset( $spec['text'] ) ? $spec['text'] : 'Link' ) ),
+					'tag'        => 'a',
+					'type'       => $href['type'],
+					'attributes' => array(
+						'href'   => $href['href'],
+						'target' => self::target_for( $spec ),
+					),
+				);
+			case 'navigation':
+				return array(
+					'tag'        => 'nav',
+					'navigation' => array(
+						'version'                  => 'v2',
+						'hamburger'                => true,
+						'navButtonViewPort'        => 'tablet',
+						'showNavigationChildrenOn' => 'click',
+						'editorProps'              => array(
+							'activeNavigationItemId' => '',
+							'showOverlay'            => false,
+						),
+					),
+				);
+			case 'form':
+				$email = isset( $spec['email'] ) ? trim( (string) $spec['email'] ) : '';
+				if ( ! preg_match( '/^[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}$/i', $email ) ) {
+					throw new \InvalidArgumentException( 'A form needs an email address for delivery.' );
+				}
+				$subject = self::plain_text( isset( $spec['subject'] ) ? $spec['subject'] : 'New form submission' );
+				return array(
+					'tag'        => 'form',
+					'form'       => array(
+						'actions'       => array(
+							array(
+								'type'      => 'email',
+								'title'     => 'Email',
+								'emailList' => $email,
+								'replyTo'   => '',
+								'name'      => '',
+								'subject'   => $subject,
+								'body'      => '',
+							),
+						),
+						'onSubmit'      => array(
+							'type'  => 'show-notification',
+							'value' => array( 'state' => 'none' ),
+						),
+						'maxEntry'      => array(
+							'restricted' => false,
+							'value'      => '',
+						),
+						'responseLimit' => array(
+							'restricted' => false,
+							'value'      => '',
+						),
+						'saveData'      => true,
+					),
+					'attributes' => array(
+						'name' => self::plain_text( isset( $spec['name'] ) ? $spec['name'] : 'Contact' ),
+					),
 				);
 			case 'image':
 				$attachment = isset( $spec['attachment_id'] ) ? (int) $spec['attachment_id'] : 0;
@@ -565,8 +643,202 @@ class Spec_Compiler {
 			'button'     => 'Button',
 			'image'      => 'Image',
 			'link-block' => 'Link',
+			'link-text'  => 'Link',
+			'navigation' => 'Navigation',
+			'form'       => 'Form',
 		);
-		return $names[ $type ];
+		return isset( $names[ $type ] ) ? $names[ $type ] : 'Element';
+	}
+
+	/**
+	 * Mixed text and inline links. Links are elements, referenced from contents.
+	 *
+	 * @param array  $parts Inline parts.
+	 * @param string $parent_id Parent element id.
+	 * @param array  $blocks Blocks.
+	 * @param array  $styles Styles.
+	 * @param array  $keys Keys.
+	 * @param int    $count Counter.
+	 * @return array
+	 */
+	private static function inline_contents( array $parts, $parent_id, array &$blocks, array &$styles, array &$keys, &$count ) {
+		$contents = array();
+		foreach ( $parts as $part ) {
+			if ( is_string( $part ) ) {
+				$contents[] = self::plain_text( $part );
+				continue;
+			}
+			if ( ! is_array( $part ) ) {
+				throw new \InvalidArgumentException( 'Each inline part must be text or a link.' );
+			}
+			$part['type'] = 'link-text';
+			$id           = self::compile_element( $part, $parent_id, $blocks, $styles, $keys, $count );
+			$contents[]   = array( 'id' => $id );
+		}
+		return $contents;
+	}
+
+	/**
+	 * Navigation items wrapper.
+	 *
+	 * @param array  $items Items.
+	 * @param string $parent_id Navigation id.
+	 * @param array  $blocks Blocks.
+	 * @param array  $styles Styles.
+	 * @param array  $keys Keys.
+	 * @param int    $count Counter.
+	 * @return string
+	 */
+	private static function navigation_items( $items, $parent_id, array &$blocks, array &$styles, array &$keys, &$count ) {
+		if ( ! is_array( $items ) || ! $items ) {
+			throw new \InvalidArgumentException( 'A navigation needs at least one item.' );
+		}
+		$list_id   = Ids::make( $blocks );
+		$child_ids = array();
+		foreach ( $items as $item ) {
+			if ( ! is_array( $item ) ) {
+				throw new \InvalidArgumentException( 'Each navigation item must be an object.' );
+			}
+			++$count;
+			$item_id            = Ids::make( $blocks );
+			$link               = $item;
+			$link['type']       = 'link-text';
+			$link_id            = self::compile_element( $link, $item_id, $blocks, $styles, $keys, $count );
+			$blocks[ $item_id ] = self::shell(
+				'navigation-item',
+				self::plain_text( isset( $item['text'] ) ? $item['text'] : 'Item' ),
+				$list_id,
+				$item_id,
+				array( $link_id ),
+				array(
+					'tag'            => 'div',
+					'navigationItem' => array( 'showNavigationChildrenOn' => 'click' ),
+				),
+				$styles,
+				'display:flex;align-items:center;'
+			);
+			$child_ids[]        = $item_id;
+		}
+		$blocks[ $list_id ] = self::shell(
+			'navigation-items',
+			'Menu',
+			$parent_id,
+			$list_id,
+			$child_ids,
+			array(
+				'tag'        => 'div',
+				'attributes' => array( 'kirki-menu-wrapper' => 'true' ),
+			),
+			$styles,
+			'display:flex;column-gap:20px;row-gap:12px;flex-wrap:wrap;align-items:center;margin:0;padding:0;'
+		);
+		return $list_id;
+	}
+
+	/**
+	 * Label and field pairs inside a form.
+	 *
+	 * @param array  $fields Fields.
+	 * @param string $parent_id Form id.
+	 * @param array  $blocks Blocks.
+	 * @param array  $styles Styles.
+	 * @param array  $keys Keys.
+	 * @param int    $count Counter.
+	 * @return string[]
+	 */
+	private static function form_fields( $fields, $parent_id, array &$blocks, array &$styles, array &$keys, &$count ) {
+		if ( ! is_array( $fields ) || ! $fields ) {
+			throw new \InvalidArgumentException( 'A form needs at least one field.' );
+		}
+		$ids = array();
+		foreach ( $fields as $field ) {
+			if ( ! is_array( $field ) ) {
+				throw new \InvalidArgumentException( 'Each form field must be an object.' );
+			}
+			$name = isset( $field['name'] ) ? strtolower( (string) $field['name'] ) : '';
+			if ( ! preg_match( '/^[a-z][a-z0-9_]{0,40}$/', $name ) ) {
+				throw new \InvalidArgumentException( 'Form field names must start with a letter and use only letters, numbers, and underscores.' );
+			}
+			$label = self::plain_text( isset( $field['label'] ) ? $field['label'] : $name );
+			$type  = isset( $field['type'] ) ? (string) $field['type'] : 'text';
+			if ( ! in_array( $type, array( 'text', 'email', 'tel', 'textarea' ), true ) ) {
+				throw new \InvalidArgumentException( 'Form fields must be text, email, tel, or textarea.' );
+			}
+			++$count;
+			$wrap_id             = Ids::make( $blocks );
+			$label_id            = Ids::make( $blocks );
+			$field_id            = Ids::make( $blocks );
+			$blocks[ $label_id ] = self::shell(
+				'label',
+				$label,
+				$wrap_id,
+				$label_id,
+				array(),
+				array(
+					'contents' => array( $label ),
+					'tag'      => 'label',
+				),
+				$styles,
+				'font-size:14px;font-weight:600;'
+			);
+			unset( $blocks[ $label_id ]['children'] );
+			$attributes = array(
+				'name'     => $name,
+				'required' => ! empty( $field['required'] ),
+			);
+			if ( 'textarea' === $type ) {
+				$field_props = array(
+					'tag'        => 'textarea',
+					'attributes' => $attributes,
+				);
+			} else {
+				$attributes['type'] = $type;
+				$field_props        = array(
+					'tag'        => 'input',
+					'noEndTag'   => true,
+					'attributes' => $attributes,
+				);
+			}
+			$blocks[ $field_id ] = self::shell( 'textarea' === $type ? 'textarea' : 'input', $label, $wrap_id, $field_id, array(), $field_props, $styles, 'width:100%;' );
+			unset( $blocks[ $field_id ]['children'] );
+			$blocks[ $wrap_id ] = self::shell( 'div', $label, $parent_id, $wrap_id, array( $label_id, $field_id ), array( 'tag' => 'div' ), $styles, 'display:flex;flex-direction:column;gap:8px;width:100%;' );
+			$ids[]              = $wrap_id;
+		}
+		return $ids;
+	}
+
+	/**
+	 * One stored element plus its local style.
+	 *
+	 * @param string $name Element name.
+	 * @param string $title Title.
+	 * @param string $parent_id Parent.
+	 * @param string $id Id.
+	 * @param array  $children Children.
+	 * @param array  $properties Properties.
+	 * @param array  $styles Styles.
+	 * @param string $css Desktop CSS.
+	 * @return array
+	 */
+	private static function shell( $name, $title, $parent_id, $id, array $children, array $properties, array &$styles, $css ) {
+		$style_id = self::add_style( $styles, array( 'md' => $css ) );
+		$element  = array(
+			'visibility'       => true,
+			'collapse'         => false,
+			'name'             => $name,
+			'title'            => $title,
+			'properties'       => $properties,
+			'styleIds'         => array( $style_id ),
+			'className'        => '',
+			'source'           => 'kirki',
+			'id'               => $id,
+			'parentId'         => $parent_id,
+			'template_mounted' => true,
+		);
+		if ( $children ) {
+			$element['children'] = $children;
+		}
+		return $element;
 	}
 
 	/**

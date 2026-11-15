@@ -15,3 +15,7 @@ jobs:
           tools: phpunit:9
       - name: Compiler tests
         run: phpunit --configuration phpunit.xml.dist
+      - name: Coding standards
+        run: |
+          composer install --no-interaction
+          vendor/bin/phpcs

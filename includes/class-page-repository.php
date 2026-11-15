@@ -26,11 +26,9 @@ class Page_Repository {
 	 * @return void
 	 */
 	public static function assert_ready() {
-		if ( ! defined( 'KIRKI_VERSION' ) ) {
-			throw new \RuntimeException( 'The Kirki plugin is not active.' );
-		}
-		if ( version_compare( KIRKI_VERSION, '6.0.0', '<' ) || version_compare( KIRKI_VERSION, '7.0.0', '>=' ) ) {
-			throw new \RuntimeException( 'Kirki MCP supports Kirki 6.x. This site is running Kirki ' . KIRKI_VERSION . '.' );
+		$reason = Compatibility::unsupported_reason();
+		if ( '' !== $reason ) {
+			throw new \RuntimeException( $reason );
 		}
 	}
 
@@ -78,21 +76,26 @@ class Page_Repository {
 			}
 		}
 
-		update_post_meta( $page_id, 'kirki_variable_mode', 'default' );
+		self::ensure_variable_mode( $page_id );
 		return $page_id;
 	}
 
 	/**
 	 * Load the graph the editor would show.
 	 *
-	 * @param int $page_id Page id.
+	 * @param int  $page_id Page id.
+	 * @param bool $convert Allow turning a non-Kirki page into a Kirki page.
 	 * @return array{post:\WP_Post,document:Document,stage:int|null}
 	 */
-	public static function load( $page_id ) {
+	public static function load( $page_id, $convert = false ) {
 		self::assert_ready();
 		$post = self::page( $page_id );
-		$stage = self::unpublished_stage( $post->ID );
-		$meta  = self::read_meta( $post->ID, 'kirki', $stage );
+		$mode = get_post_meta( $post->ID, 'kirki_editor_mode', true );
+		if ( 'kirki' !== $mode && ! $convert ) {
+			throw new \InvalidArgumentException( 'Page ' . (int) $post->ID . ' is not a Kirki page. Pass convert true to switch it. The existing post content stays in the database, and Kirki will render the page instead.' );
+		}
+		$stage  = self::unpublished_stage( $post->ID );
+		$meta   = self::read_meta( $post->ID, 'kirki', $stage );
 		$styles = self::read_meta( $post->ID, 'kirki_global_style_block_random', $stage );
 		return array(
 			'post'     => $post,
@@ -118,11 +121,22 @@ class Page_Repository {
 	public static function save( $page_id, Document $document, $stage ) {
 		self::assert_ready();
 		$page_id = (int) $page_id;
-		$blocks  = array( 'blocks' => $document->blocks );
-		$styles  = $document->styles;
+		$post    = get_post( $page_id );
+		if ( ! $post || 'page' !== $post->post_type ) {
+			throw new \InvalidArgumentException( 'Page ' . $page_id . ' was not found.' );
+		}
+
+		$document->validate( Global_Repository::class_id_list() );
+		$stage_arg = $stage ? (int) $stage : null;
+		if ( null === $stage_arg && 'publish' === $post->post_status ) {
+			$stage_arg = self::open_unpublished_stage( $page_id );
+		}
+
+		$blocks = array( 'blocks' => $document->blocks );
+		$styles = $document->styles;
 
 		if ( class_exists( '\Kirki\App\Supports\Facades\Page' ) ) {
-			$stage_arg = $stage ? (int) $stage : false;
+			$stage_arg = $stage_arg ? (int) $stage_arg : false;
 			\Kirki\App\Supports\Facades\Page::save_blocks( $page_id, $blocks, $stage_arg );
 			\Kirki\App\Supports\Facades\Page::save_style_blocks( $page_id, $styles, $stage_arg );
 			\Kirki\App\Supports\Facades\Page::save_used_style_block_ids( $page_id, $document->local_style_ids(), $stage_arg );
@@ -136,13 +150,89 @@ class Page_Repository {
 			update_post_meta( $page_id, 'kirki_editor_mode', 'kirki' );
 		}
 
-		update_post_meta( $page_id, 'kirki_variable_mode', 'default' );
+		self::ensure_variable_mode( $page_id );
 		self::ensure_canvas_template( $page_id );
 
-		if ( ! $stage && class_exists( '\Kirki\App\Supports\Facades\Page' ) ) {
-			// Creates the published stage and snapshots the meta just written, when none exists yet.
+		if ( $stage_arg && class_exists( '\Kirki\App\Supports\Facades\Page' ) ) {
+			\Kirki\App\Supports\Facades\Page::set_last_edited_datetime_of_stage_version( $page_id );
+		} elseif ( class_exists( '\Kirki\App\Supports\Facades\Page' ) ) {
+			// A draft lives in post meta. Create the published version record once, after the meta is written.
 			\Kirki\App\Supports\Facades\Page::get_all_staged_versions( $page_id, true );
 		}
+	}
+
+	/**
+	 * Open an unpublished stage for a page that is already public.
+	 *
+	 * Kirki's get_stage_version_for_save copies the published meta into the new
+	 * version, so the stage starts as a complete snapshot. The sentinel value
+	 * never matches stored meta, which forces a new version even when only
+	 * styles changed.
+	 *
+	 * @param int $page_id Page id.
+	 * @return int
+	 */
+	private static function open_unpublished_stage( $page_id ) {
+		$existing = self::unpublished_stage( $page_id );
+		if ( $existing ) {
+			return $existing;
+		}
+		$version = \Kirki\App\Supports\Facades\Page::get_stage_version_for_save(
+			(int) $page_id,
+			'kirki',
+			array( 'kirki_mcp_stage' => Ids::make() )
+		);
+		if ( ! $version ) {
+			throw new \RuntimeException( 'Kirki did not open an unpublished stage for page ' . (int) $page_id . '.' );
+		}
+		return (int) $version;
+	}
+
+	/**
+	 * Update title or slug.
+	 *
+	 * @param int    $page_id Page id.
+	 * @param string $title Optional title.
+	 * @param string $slug Optional slug.
+	 * @return void
+	 */
+	/**
+	 * SEO title and meta description, stored the way Kirki's head tags read them.
+	 *
+	 * @param int    $page_id Page id.
+	 * @param string $meta_description Meta description.
+	 * @param string $seo_title Optional SEO title.
+	 * @return array
+	 */
+	public static function update_seo( $page_id, $meta_description, $seo_title = '' ) {
+		$post = self::page( $page_id );
+		$seo  = get_post_meta( $post->ID, 'kirki_page_seo_settings', true );
+		if ( ! is_array( $seo ) ) {
+			$seo = array();
+		}
+		if ( ! isset( $seo['seoSettings'] ) || ! is_array( $seo['seoSettings'] ) ) {
+			$seo['seoSettings'] = array();
+		}
+		$description = sanitize_text_field( $meta_description );
+		if ( '' === $description ) {
+			throw new \InvalidArgumentException( 'A meta description is required.' );
+		}
+		$seo['seoSettings']['seoMetaDesc'] = array( 'value' => $description );
+		if ( '' !== $seo_title ) {
+			$seo['seoSettings']['seoTitleTag'] = array( 'value' => sanitize_text_field( $seo_title ) );
+		}
+		update_post_meta( $post->ID, 'kirki_page_seo_settings', $seo );
+		wp_update_post(
+			array(
+				'ID'           => $post->ID,
+				'post_excerpt' => $description,
+			)
+		);
+		return array(
+			'page_id'          => (int) $post->ID,
+			'meta_description' => $description,
+			'seo_title'        => isset( $seo['seoSettings']['seoTitleTag']['value'] ) ? $seo['seoSettings']['seoTitleTag']['value'] : '',
+		);
 	}
 
 	/**
@@ -184,10 +274,24 @@ class Page_Repository {
 	 */
 	public static function publish( $page_id, $set_front = false ) {
 		self::assert_ready();
-		$post  = self::page( $page_id );
-		$stage = self::unpublished_stage( $post->ID );
-		if ( $stage && class_exists( '\Kirki\App\Supports\Facades\Page' ) ) {
-			\Kirki\App\Supports\Facades\Page::publish_stage_version( $post->ID, false );
+		if ( $set_front && true !== current_user_can( 'manage_options' ) ) {
+			throw new \InvalidArgumentException( 'Setting the front page requires a user who can manage options. The page was not published.' );
+		}
+		$post = self::page( $page_id );
+		if ( class_exists( '\Kirki\App\Supports\Facades\Page' ) ) {
+			\Kirki\App\Supports\Facades\Page::stages()->with_version_lock(
+				(int) $post->ID,
+				function () use ( $post ) {
+					$stage = self::unpublished_stage( $post->ID );
+					if ( $stage ) {
+						self::copy_stage_onto_published_meta( $post->ID, $stage );
+					}
+					// Kirki's own publish fills only empty published keys, then snapshots
+					// post meta back over the stage. Copying the stage first makes that
+					// snapshot the edited content instead of the previous published page.
+					\Kirki\App\Supports\Facades\Page::publish_stage_version( $post->ID, false );
+				}
+			);
 		}
 		$result = wp_update_post(
 			array(
@@ -200,11 +304,26 @@ class Page_Repository {
 			throw new \RuntimeException( $result->get_error_message() );
 		}
 		if ( $set_front ) {
-			if ( ! current_user_can( 'manage_options' ) ) {
-				throw new \InvalidArgumentException( 'Setting the front page requires a user who can manage options.' );
-			}
 			update_option( 'show_on_front', 'page' );
 			update_option( 'page_on_front', $post->ID );
+		}
+	}
+
+	/**
+	 * Overwrite published post meta with one stage's content keys.
+	 *
+	 * @param int $page_id Page id.
+	 * @param int $stage Stage version.
+	 * @return void
+	 */
+	private static function copy_stage_onto_published_meta( $page_id, $stage ) {
+		$keys   = \Kirki\App\Constants\PageMetaKeys::get_stage_content_keys();
+		$values = \Kirki\App\Supports\Facades\Page::stages()->get_values( (int) $page_id, (int) $stage, $keys );
+		if ( ! is_array( $values ) ) {
+			return;
+		}
+		foreach ( $values as $key => $value ) {
+			\Kirki\App\Supports\Facades\Page::write_page_meta( (int) $page_id, (string) $key, $value, false );
 		}
 	}
 
@@ -233,10 +352,24 @@ class Page_Repository {
 	 * @return int New page id.
 	 */
 	public static function duplicate( $page_id ) {
-		$loaded = self::load( $page_id );
-		$copy   = self::create( $loaded['post']->post_title . ' copy', '', 'draft' );
-		self::save( $copy, $loaded['document'], null );
-		return $copy;
+		self::assert_ready();
+		$post = self::page( $page_id );
+		$page = \Kirki\App\Models\Page::find( $post->ID );
+		if ( ! $page ) {
+			throw new \InvalidArgumentException( 'Page ' . (int) $post->ID . ' was not found.' );
+		}
+		$copy    = ( new \Kirki\App\Services\PageService() )->duplicate_page( $page );
+		$copy_id = is_object( $copy ) ? (int) $copy->ID : 0;
+		if ( $copy_id <= 0 ) {
+			throw new \RuntimeException( 'Kirki did not duplicate the page.' );
+		}
+		foreach ( array( 'kirki_page_seo_settings', 'kirki_page_custom_code', 'kirki_disabled_page_symbols', 'kirki_variable_mode' ) as $key ) {
+			$value = get_post_meta( $post->ID, $key, true );
+			if ( '' !== $value && array() !== $value && null !== $value ) {
+				update_post_meta( $copy_id, $key, $value );
+			}
+		}
+		return $copy_id;
 	}
 
 	/**
@@ -257,12 +390,19 @@ class Page_Repository {
 			'order'          => 'DESC',
 		);
 		if ( $kirki_only ) {
-			$args['meta_key']   = 'kirki_editor_mode';
-			$args['meta_value'] = 'kirki';
+			$args['meta_query'] = array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- bounded page list, at most 50 rows.
+				array(
+					'key'   => 'kirki_editor_mode',
+					'value' => 'kirki',
+				),
+			);
 		}
 		$query = new \WP_Query( $args );
 		$items = array();
 		foreach ( $query->posts as $post ) {
+			if ( ! current_user_can( 'edit_post', $post->ID ) ) {
+				continue;
+			}
 			$items[] = self::summary( $post );
 		}
 		return array(
@@ -276,19 +416,19 @@ class Page_Repository {
 	/**
 	 * Public summary of a stored page.
 	 *
-	 * @param int         $page_id Page id.
-	 * @param bool        $include_raw Include the element map.
+	 * @param int  $page_id Page id.
+	 * @param bool $include_raw Include the element map.
 	 * @return array
 	 */
 	public static function present( $page_id, $include_raw = false ) {
-		$loaded = self::load( $page_id );
-		$post   = $loaded['post'];
-		$data   = self::summary( $post );
-		$data['stage']   = $loaded['stage'];
+		$loaded             = self::load( $page_id );
+		$post               = $loaded['post'];
+		$data               = self::summary( $post );
+		$data['stage']      = $loaded['stage'];
 		$data['writing_to'] = $loaded['stage'] ? 'unpublished_stage' : 'published_meta';
-		$data['tree']    = $loaded['document']->tree();
-		$data['styles']  = $loaded['document']->style_summary();
-		$data['keys']    = $loaded['document']->keys;
+		$data['tree']       = $loaded['document']->tree();
+		$data['styles']     = $loaded['document']->style_summary();
+		$data['keys']       = $loaded['document']->keys;
 		if ( $include_raw ) {
 			$data['blocks'] = $loaded['document']->blocks;
 		}
@@ -304,15 +444,15 @@ class Page_Repository {
 	public static function summary( $post ) {
 		$kirki = 'kirki' === get_post_meta( $post->ID, 'kirki_editor_mode', true );
 		return array(
-			'id'         => (int) $post->ID,
-			'title'      => $post->post_title,
-			'slug'       => $post->post_name,
-			'status'     => $post->post_status,
-			'kirki'      => $kirki,
-			'modified'   => $post->post_modified_gmt,
-			'permalink'  => get_permalink( $post ),
-			'preview_url'=> get_preview_post_link( $post ),
-			'editor_url' => self::editor_url( $post->ID ),
+			'id'          => (int) $post->ID,
+			'title'       => $post->post_title,
+			'slug'        => $post->post_name,
+			'status'      => $post->post_status,
+			'kirki'       => $kirki,
+			'modified'    => $post->post_modified_gmt,
+			'permalink'   => get_permalink( $post ),
+			'preview_url' => get_preview_post_link( $post ),
+			'editor_url'  => self::editor_url( $post->ID ),
 		);
 	}
 
@@ -337,7 +477,7 @@ class Page_Repository {
 	 * @return void
 	 */
 	public static function resolve_classes( array &$sections ) {
-		$map = Global_Repository::name_map();
+		$map  = Global_Repository::name_map();
 		$walk = function ( &$elements ) use ( &$walk, $map ) {
 			foreach ( $elements as &$spec ) {
 				if ( ! is_array( $spec ) ) {
@@ -419,6 +559,24 @@ class Page_Repository {
 	/**
 	 * Point the page at Kirki's full-canvas template when it has none.
 	 *
+	 * @param int $page_id Page id.
+	 * @return void
+	 */
+	/**
+	 * Set the variable mode only when the page does not already have one.
+	 *
+	 * @param int $page_id Page id.
+	 * @return void
+	 */
+	private static function ensure_variable_mode( $page_id ) {
+		$current = get_post_meta( $page_id, 'kirki_variable_mode', true );
+		if ( is_string( $current ) && '' !== $current ) {
+			return;
+		}
+		update_post_meta( $page_id, 'kirki_variable_mode', 'default' );
+	}
+
+	/**
 	 * @param int $page_id Page id.
 	 * @return void
 	 */

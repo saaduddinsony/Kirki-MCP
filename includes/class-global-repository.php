@@ -64,7 +64,7 @@ class Global_Repository {
 			if ( ! is_array( $style ) ) {
 				continue;
 			}
-			$name = isset( $style['name'] ) ? (string) $style['name'] : '';
+			$name      = isset( $style['name'] ) ? (string) $style['name'] : '';
 			$classes[] = array(
 				'id'        => (string) ( isset( $style['id'] ) ? $style['id'] : $id ),
 				'name'      => $name,
@@ -73,6 +73,26 @@ class Global_Repository {
 			);
 		}
 		return $classes;
+	}
+
+	/**
+	 * Map of lowercase class name to style-block id.
+	 *
+	 * @return array
+	 */
+	/**
+	 * Ids of every global class.
+	 *
+	 * @return string[]
+	 */
+	public static function class_id_list() {
+		$ids = array();
+		foreach ( self::list_classes() as $class ) {
+			if ( '' !== $class['id'] ) {
+				$ids[] = $class['id'];
+			}
+		}
+		return $ids;
 	}
 
 	/**
@@ -114,7 +134,7 @@ class Global_Repository {
 			}
 		}
 		if ( null === $id ) {
-			$id = Ids::make( $blocks );
+			$id            = Ids::make( $blocks );
 			$blocks[ $id ] = array(
 				'id'            => $id,
 				'type'          => 'class',
@@ -153,7 +173,7 @@ class Global_Repository {
 		$data = self::variable_groups();
 		$out  = array();
 		foreach ( $data as $group ) {
-			$key = isset( $group['key'] ) ? $group['key'] : '';
+			$key   = isset( $group['key'] ) ? $group['key'] : '';
 			$items = array();
 			if ( ! empty( $group['variables'] ) && is_array( $group['variables'] ) ) {
 				foreach ( $group['variables'] as $variable ) {
@@ -175,14 +195,47 @@ class Global_Repository {
 	}
 
 	/**
-	 * Upsert color, font-family, and size variables.
+	 * Register a Google Fonts stylesheet so Kirki prints a link tag.
+	 *
+	 * @param string $family Family name.
+	 * @param string $url https://fonts.googleapis.com stylesheet.
+	 * @return array
+	 */
+	public static function register_font( $family, $url ) {
+		Page_Repository::assert_ready();
+		$family = trim( (string) $family );
+		if ( ! preg_match( '/^[A-Za-z0-9][A-Za-z0-9 -]{0,60}$/', $family ) ) {
+			throw new \InvalidArgumentException( 'Font family names may contain letters, numbers, spaces, and hyphens.' );
+		}
+		$parts = wp_parse_url( (string) $url );
+		if ( ! is_array( $parts ) || ( $parts['scheme'] ?? '' ) !== 'https' || ( $parts['host'] ?? '' ) !== 'fonts.googleapis.com' ) {
+			throw new \InvalidArgumentException( 'Only https://fonts.googleapis.com stylesheets can be registered.' );
+		}
+		$fonts = \Kirki\App\Supports\Facades\GlobalData::get_global_custom_fonts();
+		if ( ! is_array( $fonts ) ) {
+			$fonts = array();
+		}
+		$fonts[ $family ] = array(
+			'family'  => $family,
+			'fontUrl' => (string) $url,
+		);
+		\Kirki\App\Supports\Facades\GlobalData::update_global_custom_fonts( $fonts );
+		return array(
+			'family'   => $family,
+			'font_url' => (string) $url,
+		);
+	}
+
+	/**
+	 * Upsert color, font-family, size, and text-style variables.
 	 *
 	 * @param array $colors Color specs.
 	 * @param array $fonts Font specs.
 	 * @param array $sizes Size specs.
+	 * @param array $text_styles Text style specs.
 	 * @return array Current variables.
 	 */
-	public static function set_variables( array $colors, array $fonts, array $sizes ) {
+	public static function set_variables( array $colors, array $fonts, array $sizes, array $text_styles = array() ) {
 		Page_Repository::assert_ready();
 		$saved = \Kirki\App\Supports\Facades\GlobalData::get_global_ui_saved_data();
 		if ( ! is_array( $saved ) ) {
@@ -200,7 +253,7 @@ class Global_Repository {
 		}
 		foreach ( array( 'color', 'size', 'font-family', 'text-style' ) as $required ) {
 			if ( ! isset( $index[ $required ] ) ) {
-				$groups[] = array(
+				$groups[]           = array(
 					'title'     => $required,
 					'key'       => $required,
 					'modes'     => array(
@@ -221,6 +274,46 @@ class Global_Repository {
 		foreach ( $fonts as $font ) {
 			self::upsert_variable( $groups[ $index['font-family'] ], 'font-family', $font, Css::font_family( isset( $font['value'] ) ? $font['value'] : '' ) );
 		}
+		foreach ( $text_styles as $style ) {
+			if ( ! is_array( $style ) ) {
+				throw new \InvalidArgumentException( 'Each text style must be an object.' );
+			}
+			$family  = isset( $style['font_family'] ) ? Css::font_stack( $style['font_family'] ) : '';
+			$devices = array();
+			$styles  = isset( $style['styles'] ) && is_array( $style['styles'] ) ? $style['styles'] : array();
+			foreach ( $styles as $device => $props ) {
+				$device = Css::variant_key( $device );
+				if ( false !== strpos( $device, '_' ) ) {
+					throw new \InvalidArgumentException( 'Text styles use viewport keys such as md, tablet, and mobile.' );
+				}
+				if ( ! is_array( $props ) ) {
+					throw new \InvalidArgumentException( 'Each text-style viewport needs a map of CSS properties.' );
+				}
+				$clean = array();
+				foreach ( $props as $prop => $prop_value ) {
+					$prop = strtolower( (string) $prop );
+					if ( ! in_array( $prop, array( 'font-size', 'line-height', 'letter-spacing', 'font-weight', 'font-style' ), true ) ) {
+						throw new \InvalidArgumentException( 'Text styles accept font-size, line-height, letter-spacing, font-weight, and font-style.' );
+					}
+					$prop_value = trim( (string) $prop_value );
+					if ( ! preg_match( '/^[A-Za-z0-9.% -]{1,20}$/', $prop_value ) ) {
+						throw new \InvalidArgumentException( 'A text-style value is not a plain CSS value.' );
+					}
+					$clean[ $prop ] = $prop_value;
+				}
+				$devices[ $device ] = $clean;
+			}
+			self::upsert_variable(
+				$groups[ $index['text-style'] ],
+				'text-style',
+				$style,
+				array(
+					'font-family' => $family,
+					'styles'      => $devices,
+				)
+			);
+		}
+
 		foreach ( $sizes as $size ) {
 			$value = isset( $size['value'] ) ? $size['value'] : null;
 			$unit  = isset( $size['unit'] ) ? (string) $size['unit'] : 'px';
@@ -241,7 +334,7 @@ class Global_Repository {
 			);
 		}
 
-		$saved['variableData'] = array( 'data' => $groups );
+		$saved['variableData'] = array( 'data' => array_values( $groups ) );
 		\Kirki\App\Supports\Facades\GlobalData::update_global_ui_saved_data( $saved );
 		return self::list_variables();
 	}

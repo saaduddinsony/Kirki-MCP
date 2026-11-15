@@ -35,8 +35,8 @@ class Css {
 			throw new \InvalidArgumentException( 'A CSS variant is longer than ' . self::MAX_LENGTH . ' characters.' );
 		}
 
-		if ( preg_match( '/[<>]|expression\s*\(|javascript\s*:|@import|@charset|behavior\s*:|-moz-binding|<\/?\s*style/i', $css ) ) {
-			throw new \InvalidArgumentException( 'That CSS was rejected because it contains an unsafe construct.' );
+		if ( preg_match( '/[{}\\\\@]|expression\s*\(|javascript\s*:|behavior\s*:|-moz-binding|<\/?\s*style/i', $css ) ) {
+			throw new \InvalidArgumentException( 'That CSS was rejected. Use declarations only, such as color:#fff;padding:24px. Braces, @-rules, and backslashes are not allowed.' );
 		}
 
 		if ( preg_match_all( '/url\(\s*([\'"]?)(.*?)\1\s*\)/i', $css, $matches ) ) {
@@ -56,17 +56,90 @@ class Css {
 	}
 
 	/**
+	 * Viewport ids Kirki will emit, plus the pseudos it appends.
+	 *
+	 * @return array{viewports:string[],pseudos:string[]}
+	 */
+	public static function variant_vocabulary() {
+		$viewports = array( 'md', 'tablet', 'mobile' );
+		if ( class_exists( '\Kirki\App\Supports\Facades\GlobalData' ) ) {
+			$list = \Kirki\App\Supports\Facades\GlobalData::get_view_port_list();
+			if ( is_array( $list ) && $list ) {
+				$viewports = array();
+				foreach ( $list as $id => $viewport ) {
+					$name = is_string( $id ) ? $id : '';
+					if ( is_array( $viewport ) && ! empty( $viewport['id'] ) ) {
+						$name = (string) $viewport['id'];
+					}
+					if ( preg_match( '/^[a-z][a-z0-9]*$/', $name ) ) {
+						$viewports[] = $name;
+					}
+				}
+			}
+		}
+		if ( ! in_array( 'md', $viewports, true ) ) {
+			$viewports[] = 'md';
+		}
+		return array(
+			'viewports' => array_values( array_unique( $viewports ) ),
+			'pseudos'   => array( 'hover', 'active', 'focus', 'before', 'after', 'placeholder' ),
+		);
+	}
+
+	/**
 	 * Normalize a style-block variant key such as md or tablet_hover.
 	 *
 	 * @param string $key Variant key.
 	 * @return string
 	 */
 	public static function variant_key( $key ) {
-		$key = strtolower( trim( (string) $key ) );
-		if ( ! preg_match( '/^[a-z][a-z0-9]{0,20}(_[a-z][a-z0-9]{0,20}){0,2}$/', $key ) ) {
-			throw new \InvalidArgumentException( 'Unsupported style variant "' . $key . '". Use md, tablet, mobile, and optional _hover or _active suffixes.' );
+		$key        = strtolower( trim( (string) $key ) );
+		$vocabulary = self::variant_vocabulary();
+		$parts      = explode( '_', $key );
+		$viewport   = array_shift( $parts );
+		if ( ! in_array( $viewport, $vocabulary['viewports'], true ) ) {
+			throw new \InvalidArgumentException( 'Unsupported viewport "' . $viewport . '". Use ' . implode( ', ', $vocabulary['viewports'] ) . '.' );
+		}
+		if ( count( $parts ) > 2 ) {
+			throw new \InvalidArgumentException( 'A style variant can have at most two pseudo suffixes.' );
+		}
+		foreach ( $parts as $pseudo ) {
+			if ( ! in_array( $pseudo, $vocabulary['pseudos'], true ) ) {
+				throw new \InvalidArgumentException( 'Unsupported pseudo "' . $pseudo . '". Use ' . implode( ', ', $vocabulary['pseudos'] ) . '.' );
+			}
 		}
 		return $key;
+	}
+
+	/**
+	 * A CSS font-family list. Quoted families pass through Kirki unchanged.
+	 *
+	 * @param string $value Font stack.
+	 * @return string
+	 */
+	public static function font_stack( $value ) {
+		$value = trim( (string) $value );
+		if ( '' === $value || strlen( $value ) > 180 || preg_match( '/[{}<>\\\\@;]/', $value ) ) {
+			throw new \InvalidArgumentException( 'Font stacks may list family names separated by commas.' );
+		}
+		$families = self::split_font_list( $value );
+		if ( ! $families ) {
+			throw new \InvalidArgumentException( 'A font stack needs at least one family.' );
+		}
+		$generic = array( 'serif', 'sans-serif', 'monospace', 'cursive', 'fantasy', 'system-ui', 'ui-sans-serif', 'ui-serif', 'ui-monospace', 'emoji', 'math', 'fangsong' );
+		$out     = array();
+		foreach ( $families as $family ) {
+			$family = trim( $family, " \t\"'" );
+			if ( '' === $family || ! preg_match( '/^[A-Za-z0-9][A-Za-z0-9 ._-]*$/', $family ) ) {
+				throw new \InvalidArgumentException( 'A font family name contains unsupported characters.' );
+			}
+			if ( in_array( strtolower( $family ), $generic, true ) ) {
+				$out[] = strtolower( $family );
+			} else {
+				$out[] = '"' . $family . '"';
+			}
+		}
+		return implode( ', ', $out );
 	}
 
 	/**
@@ -79,6 +152,13 @@ class Css {
 		$url = trim( (string) $url );
 		if ( '' === $url ) {
 			return '';
+		}
+
+		if ( preg_match( '/^(mailto:|tel:)/i', $url ) ) {
+			if ( preg_match( '/[\s<>"\']/', $url ) ) {
+				throw new \InvalidArgumentException( 'That URL was rejected.' );
+			}
+			return $url;
 		}
 
 		if ( '#' === $url[0] ) {
@@ -124,17 +204,48 @@ class Css {
 	}
 
 	/**
-	 * Sanitize a font-family name.
+	 * Sanitize a font-family name or stack.
 	 *
 	 * @param string $value Font family.
 	 * @return string
 	 */
 	public static function font_family( $value ) {
-		$value = trim( preg_replace( '/\s+/', ' ', (string) $value ) );
-		if ( '' === $value || strlen( $value ) > 80 || ! preg_match( '/^[A-Za-z0-9][A-Za-z0-9 ,._-]*$/', $value ) ) {
-			throw new \InvalidArgumentException( 'Font families may contain letters, numbers, spaces, commas, and hyphens.' );
+		return self::font_stack( $value );
+	}
+
+	/**
+	 * Split a font list on commas that are not inside quotes.
+	 *
+	 * @param string $value Font list.
+	 * @return string[]
+	 */
+	private static function split_font_list( $value ) {
+		$parts  = array();
+		$buffer = '';
+		$quote  = '';
+		$length = strlen( $value );
+		for ( $i = 0; $i < $length; $i++ ) {
+			$char = $value[ $i ];
+			if ( '' === $quote && ( '"' === $char || "'" === $char ) ) {
+				$quote = $char;
+				continue;
+			}
+			if ( '' !== $quote && $char === $quote ) {
+				$quote = '';
+				continue;
+			}
+			if ( '' === $quote && ',' === $char ) {
+				$parts[] = $buffer;
+				$buffer  = '';
+				continue;
+			}
+			$buffer .= $char;
 		}
-		return $value;
+		if ( '' !== $quote ) {
+			throw new \InvalidArgumentException( 'A font stack has an unterminated quote.' );
+		}
+		$parts[] = $buffer;
+		return $parts;
 	}
 
 	/**

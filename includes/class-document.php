@@ -47,8 +47,8 @@ class Document {
 	 * @return self
 	 */
 	public static function blank() {
-		$doc      = new self();
-		$style_id = Ids::make();
+		$doc                      = new self();
+		$style_id                 = Ids::make();
 		$doc->styles[ $style_id ] = array(
 			'id'        => $style_id,
 			'type'      => 'class',
@@ -58,7 +58,7 @@ class Document {
 				'md' => 'display:flex;flex-direction:column;',
 			),
 		);
-		$doc->blocks = array(
+		$doc->blocks              = array(
 			'root' => array(
 				'accept'   => '*',
 				'children' => array( 'body' ),
@@ -111,8 +111,11 @@ class Document {
 		if ( is_array( $blocks ) && isset( $blocks['blocks'] ) && is_array( $blocks['blocks'] ) ) {
 			$blocks = $blocks['blocks'];
 		}
-		if ( ! is_array( $blocks ) ) {
-			$blocks = array();
+		if ( ! is_array( $blocks ) || ! $blocks ) {
+			return self::blank();
+		}
+		if ( ! isset( $blocks['root'], $blocks['body'] ) ) {
+			throw new \InvalidArgumentException( 'This Kirki page has elements but no root and body. It was not replaced with a blank page.' );
 		}
 		if ( ! is_array( $styles ) ) {
 			$styles = array();
@@ -121,17 +124,27 @@ class Document {
 		$doc         = new self();
 		$doc->blocks = $blocks;
 		$doc->styles = $styles;
-
-		if ( ! isset( $doc->blocks['root'] ) || ! isset( $doc->blocks['body'] ) ) {
-			$blank       = self::blank();
-			$doc->blocks = $blank->blocks;
-			$doc->styles = $blank->styles + $doc->styles;
-		}
-
 		if ( ! isset( $doc->blocks['body']['children'] ) || ! is_array( $doc->blocks['body']['children'] ) ) {
 			$doc->blocks['body']['children'] = array();
 		}
+		return $doc;
+	}
 
+	/**
+	 * A symbol graph. Symbols do not have a body element.
+	 *
+	 * @param array  $blocks Element map.
+	 * @param array  $styles Style map.
+	 * @param string $root Root id.
+	 * @return self
+	 */
+	public static function from_symbol( $blocks, $styles, $root = 'root' ) {
+		if ( ! is_array( $blocks ) || ! isset( $blocks[ $root ] ) ) {
+			throw new \InvalidArgumentException( 'This symbol has no root element.' );
+		}
+		$doc         = new self();
+		$doc->blocks = $blocks;
+		$doc->styles = is_array( $styles ) ? $styles : array();
 		return $doc;
 	}
 
@@ -241,8 +254,8 @@ class Document {
 			$block['properties']['wp_attachment_id'] = max( 0, (int) $changes['attachment_id'] );
 		}
 
-		if ( isset( $changes['class_ids'] ) && is_array( $changes['class_ids'] ) ) {
-			$block['properties']['classesIds'] = array_values( $changes['class_ids'] );
+		if ( isset( $changes['class_ids'] ) ) {
+			throw new \InvalidArgumentException( 'Pass global classes by name in classes. Raw class ids are not accepted.' );
 		}
 
 		if ( ! empty( $changes['title'] ) ) {
@@ -286,7 +299,7 @@ class Document {
 			throw new \InvalidArgumentException( 'The root and body elements cannot be removed.' );
 		}
 
-		$removed = $this->collect_descendants( $id );
+		$removed   = $this->collect_descendants( $id );
 		$removed[] = $id;
 
 		$parent_id = isset( $this->blocks[ $id ]['parentId'] ) ? $this->blocks[ $id ]['parentId'] : '';
@@ -321,12 +334,84 @@ class Document {
 	}
 
 	/**
+	 * Attach global class ids that were resolved from class names.
+	 *
+	 * @param string $id Element id.
+	 * @param array  $class_ids Style-block ids.
+	 * @return void
+	 */
+	public function set_class_ids( $id, array $class_ids ) {
+		$this->assert_exists( $id );
+		$clean = array();
+		foreach ( $class_ids as $class_id ) {
+			$class_id = (string) $class_id;
+			if ( ! preg_match( '/^[A-Za-z0-9_-]+$/', $class_id ) ) {
+				throw new \InvalidArgumentException( 'A global class id is not valid.' );
+			}
+			$clean[] = $class_id;
+		}
+		$this->blocks[ $id ]['properties']['classesIds'] = $clean;
+	}
+
+	/**
+	 * Check links, required elements, and style ids before a save.
+	 *
+	 * @param array  $global_class_ids Known global class ids.
+	 * @param string $mode page or symbol.
+	 * @param string $root Root id for a symbol.
+	 * @return void
+	 */
+	public function validate( array $global_class_ids = array(), $mode = 'page', $root = 'root' ) {
+		if ( 'page' === $mode ) {
+			if ( ! isset( $this->blocks['root'], $this->blocks['body'] ) ) {
+				throw new \InvalidArgumentException( 'A Kirki page needs root and body elements.' );
+			}
+			$children = isset( $this->blocks['root']['children'] ) ? $this->blocks['root']['children'] : array();
+			if ( array( 'body' ) !== array_values( $children ) ) {
+				throw new \InvalidArgumentException( 'The page root must contain only the body element.' );
+			}
+			$root = 'root';
+		} elseif ( ! isset( $this->blocks[ $root ] ) ) {
+			throw new \InvalidArgumentException( 'The symbol root element is missing.' );
+		}
+
+		$seen = array();
+		$this->walk( $root, '', $seen );
+		foreach ( $this->blocks as $id => $block ) {
+			if ( ! isset( $seen[ $id ] ) ) {
+				throw new \InvalidArgumentException( 'Element "' . $id . '" is not connected to the root.' );
+			}
+			$style_ids = isset( $block['styleIds'] ) && is_array( $block['styleIds'] ) ? $block['styleIds'] : array();
+			foreach ( $style_ids as $style_id ) {
+				if ( ! isset( $this->styles[ $style_id ] ) && ! in_array( $style_id, $global_class_ids, true ) ) {
+					throw new \InvalidArgumentException( 'Element "' . $id . '" references a missing style "' . $style_id . '".' );
+				}
+			}
+			if ( ! empty( $block['properties']['classesIds'] ) && is_array( $block['properties']['classesIds'] ) ) {
+				foreach ( $block['properties']['classesIds'] as $class_id ) {
+					if ( ! in_array( $class_id, $global_class_ids, true ) ) {
+						throw new \InvalidArgumentException( 'Element "' . $id . '" references an unknown global class.' );
+					}
+				}
+			}
+		}
+	}
+
+	/**
 	 * Compact tree for agents.
 	 *
 	 * @param string $id Starting element.
+	 * @param array  $seen Visited element ids, used to stop cycles.
 	 * @return array
 	 */
-	public function tree( $id = 'root' ) {
+	public function tree( $id = 'root', &$seen = null ) {
+		if ( null === $seen ) {
+			$seen = array();
+		}
+		if ( isset( $seen[ $id ] ) ) {
+			throw new \InvalidArgumentException( 'The element graph contains a cycle at "' . $id . '".' );
+		}
+		$seen[ $id ] = true;
 		if ( ! isset( $this->blocks[ $id ] ) ) {
 			return array();
 		}
@@ -358,7 +443,14 @@ class Document {
 			$node['children'] = array();
 			foreach ( $block['children'] as $child_id ) {
 				if ( isset( $this->blocks[ $child_id ] ) ) {
-					$node['children'][] = $this->tree( $child_id );
+					$node['children'][] = $this->tree( $child_id, $seen );
+				}
+			}
+		}
+		if ( ! empty( $block['properties']['contents'] ) && is_array( $block['properties']['contents'] ) ) {
+			foreach ( $block['properties']['contents'] as $part ) {
+				if ( is_array( $part ) && ! empty( $part['id'] ) && isset( $this->blocks[ $part['id'] ] ) ) {
+					$node['inline'][] = $this->tree( $part['id'], $seen );
 				}
 			}
 		}
@@ -500,7 +592,7 @@ class Document {
 			}
 		}
 
-		$style_id = Ids::make( $this->styles );
+		$style_id                  = Ids::make( $this->styles );
 		$this->styles[ $style_id ] = array(
 			'id'        => $style_id,
 			'type'      => 'class',
@@ -530,7 +622,7 @@ class Document {
 		if ( ! isset( $block['properties']['attributes'] ) || ! is_array( $block['properties']['attributes'] ) ) {
 			$block['properties']['attributes'] = array();
 		}
-		$block['properties']['type']                = $type;
+		$block['properties']['type']               = $type;
 		$block['properties']['attributes']['href'] = $href;
 	}
 
@@ -569,22 +661,62 @@ class Document {
 	 * Descendant ids, not including $id.
 	 *
 	 * @param string $id Element id.
+	 * @param array  $seen Visited element ids, used to stop cycles.
 	 * @return string[]
 	 */
-	private function collect_descendants( $id ) {
-		$found = array();
-		$children = isset( $this->blocks[ $id ]['children'] ) ? $this->blocks[ $id ]['children'] : array();
-		if ( ! is_array( $children ) ) {
-			return $found;
+	private function collect_descendants( $id, &$seen = null ) {
+		if ( null === $seen ) {
+			$seen = array();
 		}
-		foreach ( $children as $child_id ) {
-			if ( ! isset( $this->blocks[ $child_id ] ) ) {
-				continue;
+		if ( isset( $seen[ $id ] ) ) {
+			throw new \InvalidArgumentException( 'The element graph contains a cycle at "' . $id . '".' );
+		}
+		$seen[ $id ] = true;
+		$found       = array();
+		$children    = isset( $this->blocks[ $id ]['children'] ) ? $this->blocks[ $id ]['children'] : array();
+		if ( is_array( $children ) ) {
+			foreach ( $children as $child_id ) {
+				if ( ! isset( $this->blocks[ $child_id ] ) ) {
+					continue;
+				}
+				$found[] = $child_id;
+				$found   = array_merge( $found, $this->collect_descendants( $child_id, $seen ) );
 			}
-			$found[] = $child_id;
-			$found   = array_merge( $found, $this->collect_descendants( $child_id ) );
 		}
 		return $found;
+	}
+
+	/**
+	 * Walk parent and child links once.
+	 *
+	 * @param string $id Element id.
+	 * @param string $parent_id Expected parent.
+	 * @param array  $seen Visited ids.
+	 * @return void
+	 */
+	private function walk( $id, $parent_id, array &$seen ) {
+		if ( isset( $seen[ $id ] ) ) {
+			throw new \InvalidArgumentException( 'The element graph contains a cycle at "' . $id . '".' );
+		}
+		if ( ! isset( $this->blocks[ $id ] ) || ! is_array( $this->blocks[ $id ] ) ) {
+			throw new \InvalidArgumentException( 'Element "' . $id . '" is missing from the page.' );
+		}
+		$seen[ $id ] = true;
+		$block       = $this->blocks[ $id ];
+		if ( '' !== $parent_id && isset( $block['parentId'] ) && (string) $block['parentId'] !== (string) $parent_id ) {
+			throw new \InvalidArgumentException( 'Element "' . $id . '" records a different parent than the element that contains it.' );
+		}
+		$children = isset( $block['children'] ) && is_array( $block['children'] ) ? $block['children'] : array();
+		foreach ( $children as $child_id ) {
+			$this->walk( $child_id, $id, $seen );
+		}
+		if ( ! empty( $block['properties']['contents'] ) && is_array( $block['properties']['contents'] ) ) {
+			foreach ( $block['properties']['contents'] as $part ) {
+				if ( is_array( $part ) && ! empty( $part['id'] ) ) {
+					$this->walk( $part['id'], $id, $seen );
+				}
+			}
+		}
 	}
 
 	/**

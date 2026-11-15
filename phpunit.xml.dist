@@ -4,6 +4,7 @@
 		<testsuite name="compiler">
 			<file>tests/CompilerTest.php</file>
 			<file>tests/SafetyTest.php</file>
+			<file>tests/FixesTest.php</file>
 		</testsuite>
 	</testsuites>
 </phpunit>

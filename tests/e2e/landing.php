@@ -113,8 +113,8 @@ function ability( $name, array $parameters ) {
 			),
 		)
 	);
-	$text = $response['result']['content'][0]['text'] ?? '';
-	$data = json_decode( $text, true );
+	$text     = $response['result']['content'][0]['text'] ?? '';
+	$data     = json_decode( $text, true );
 	if ( ! is_array( $data ) || empty( $data['success'] ) ) {
 		fwrite( STDERR, "{$name} failed: {$text}\n" );
 		exit( 1 );
@@ -128,7 +128,7 @@ mcp_request(
 	array(
 		'protocolVersion' => '2025-06-18',
 		'capabilities'    => new stdClass(),
-		'clientInfo'       => array(
+		'clientInfo'      => array(
 			'name'    => 'kirki-mcp-e2e',
 			'version' => '0.1.0',
 		),
@@ -136,10 +136,10 @@ mcp_request(
 );
 mcp_request( 'notifications/initialized', null, true );
 
-$image = imagecreatetruecolor( 960, 640 );
-$fill  = imagecolorallocate( $image, 15, 23, 42 );
+$image  = imagecreatetruecolor( 960, 640 );
+$fill   = imagecolorallocate( $image, 15, 23, 42 );
 $accent = imagecolorallocate( $image, 194, 65, 12 );
-$ink   = imagecolorallocate( $image, 248, 250, 252 );
+$ink    = imagecolorallocate( $image, 248, 250, 252 );
 imagefilledrectangle( $image, 0, 0, 960, 640, $fill );
 imagefilledrectangle( $image, 0, 0, 18, 640, $accent );
 imagestring( $image, 5, 48, 290, 'Northwind workshop', $ink );
@@ -184,12 +184,24 @@ $variables = ability(
 	'kirki-mcp/set-global-variables',
 	array(
 		'colors' => array(
-			array( 'name' => 'Ink', 'value' => '#0f172a' ),
-			array( 'name' => 'Paper', 'value' => '#f8fafc' ),
-			array( 'name' => 'Accent', 'value' => '#c2410c' ),
+			array(
+				'name'  => 'Ink',
+				'value' => '#0f172a',
+			),
+			array(
+				'name'  => 'Paper',
+				'value' => '#f8fafc',
+			),
+			array(
+				'name'  => 'Accent',
+				'value' => '#c2410c',
+			),
 		),
 		'fonts'  => array(
-			array( 'name' => 'Body', 'value' => 'Inter, system-ui, sans-serif' ),
+			array(
+				'name'  => 'Body',
+				'value' => 'Inter, system-ui, sans-serif',
+			),
 		),
 	)
 );
@@ -224,9 +236,9 @@ ability(
 				),
 				'elements' => array(
 					array(
-						'type' => 'heading',
-						'tag'  => 'h1',
-						'text' => 'Northwind',
+						'type'   => 'heading',
+						'tag'    => 'h1',
+						'text'   => 'Northwind',
 						'styles' => array(
 							'md' => 'font-size:20px;font-weight:700;',
 						),
@@ -271,9 +283,9 @@ $page = ability(
 		'status'   => 'draft',
 		'sections' => array(
 			array(
-				'key'    => 'hero',
-				'title'  => 'Hero',
-				'styles' => array(
+				'key'      => 'hero',
+				'title'    => 'Hero',
+				'styles'   => array(
 					'md'     => 'flex-direction:column;gap:20px;padding:88px 8vw;background:' . $ink_var . ';color:' . $paper_var . ';width:100%;box-sizing:border-box;',
 					'mobile' => 'padding:48px 24px;',
 				),
@@ -293,8 +305,8 @@ $page = ability(
 						),
 					),
 					array(
-						'type' => 'paragraph',
-						'text' => 'This page was created through MCP, with an application password and no browser nonce. Open it in the Kirki editor to keep editing.',
+						'type'   => 'paragraph',
+						'text'   => 'This page was created through MCP, with an application password and no browser nonce. Open it in the Kirki editor to keep editing.',
 						'styles' => array(
 							'md' => 'font-size:18px;max-width:640px;color:' . $paper_var . ';',
 						),
@@ -319,43 +331,64 @@ $page = ability(
 				),
 			),
 			array(
-				'key'    => 'work',
-				'title'  => 'Work',
-				'styles' => array(
-					'md' => 'flex-direction:row;flex-wrap:wrap;gap:24px;padding:72px 8vw;background:' . $paper_var . ';color:' . $ink_var . ';width:100%;box-sizing:border-box;',
+				'key'      => 'work',
+				'title'    => 'Work',
+				'styles'   => array(
+					'md'     => 'flex-direction:row;flex-wrap:wrap;gap:24px;padding:72px 8vw;background:' . $paper_var . ';color:' . $ink_var . ';width:100%;box-sizing:border-box;',
 					'mobile' => 'flex-direction:column;padding:48px 24px;',
 				),
 				'elements' => array(
 					array(
-						'type'   => 'div',
-						'styles' => array( 'md' => 'flex-direction:column;gap:8px;flex:1;min-width:220px;' ),
+						'type'     => 'div',
+						'styles'   => array( 'md' => 'flex-direction:column;gap:8px;flex:1;min-width:220px;' ),
 						'elements' => array(
-							array( 'type' => 'heading', 'tag' => 'h2', 'text' => 'Pages' ),
-							array( 'type' => 'paragraph', 'text' => 'Sections, text, images, and buttons in the shape Kirki stores.' ),
+							array(
+								'type' => 'heading',
+								'tag'  => 'h2',
+								'text' => 'Pages',
+							),
+							array(
+								'type' => 'paragraph',
+								'text' => 'Sections, text, images, and buttons in the shape Kirki stores.',
+							),
 						),
 					),
 					array(
-						'type'   => 'div',
-						'styles' => array( 'md' => 'flex-direction:column;gap:8px;flex:1;min-width:220px;' ),
+						'type'     => 'div',
+						'styles'   => array( 'md' => 'flex-direction:column;gap:8px;flex:1;min-width:220px;' ),
 						'elements' => array(
-							array( 'type' => 'heading', 'tag' => 'h2', 'text' => 'Global styles' ),
-							array( 'type' => 'paragraph', 'text' => 'Colors and classes are shared across the site.' ),
+							array(
+								'type' => 'heading',
+								'tag'  => 'h2',
+								'text' => 'Global styles',
+							),
+							array(
+								'type' => 'paragraph',
+								'text' => 'Colors and classes are shared across the site.',
+							),
 						),
 					),
 					array(
-						'type'   => 'div',
-						'styles' => array( 'md' => 'flex-direction:column;gap:8px;flex:1;min-width:220px;' ),
+						'type'     => 'div',
+						'styles'   => array( 'md' => 'flex-direction:column;gap:8px;flex:1;min-width:220px;' ),
 						'elements' => array(
-							array( 'type' => 'heading', 'tag' => 'h2', 'text' => 'Header and footer' ),
-							array( 'type' => 'paragraph', 'text' => 'Symbols assigned as the site header and footer.' ),
+							array(
+								'type' => 'heading',
+								'tag'  => 'h2',
+								'text' => 'Header and footer',
+							),
+							array(
+								'type' => 'paragraph',
+								'text' => 'Symbols assigned as the site header and footer.',
+							),
 						),
 					),
 				),
 			),
 			array(
-				'key'    => 'contact',
-				'title'  => 'Contact',
-				'styles' => array(
+				'key'      => 'contact',
+				'title'    => 'Contact',
+				'styles'   => array(
 					'md' => 'flex-direction:column;gap:12px;padding:72px 8vw;background:#fff7ed;color:' . $ink_var . ';width:100%;box-sizing:border-box;',
 				),
 				'elements' => array(
@@ -384,7 +417,7 @@ $published = ability(
 
 $home = curl_init( rtrim( $base, '/' ) . '/' );
 curl_setopt( $home, CURLOPT_RETURNTRANSFER, true );
-$html = curl_exec( $home );
+$html      = curl_exec( $home );
 $home_code = curl_getinfo( $home, CURLINFO_RESPONSE_CODE );
 curl_close( $home );
 
@@ -403,19 +436,19 @@ foreach ( $needles as $needle ) {
 }
 
 $result = array(
-	'page_id'    => $published['id'],
-	'permalink'  => $published['permalink'],
-	'editor_url' => $published['editor_url'],
-	'status'     => $published['status'],
-	'home_http'  => $home_code,
-	'missing'    => $missing,
-	'media_id'   => $uploaded['id'],
+	'page_id'         => $published['id'],
+	'permalink'       => $published['permalink'],
+	'editor_url'      => $published['editor_url'],
+	'status'          => $published['status'],
+	'home_http'       => $home_code,
+	'missing'         => $missing,
+	'media_id'        => $uploaded['id'],
 	'direct_media_id' => $direct_json['id'],
 );
 file_put_contents( sys_get_temp_dir() . '/kirki-mcp-landing.json', json_encode( $result, JSON_PRETTY_PRINT ) );
 
 if ( 200 !== $home_code || $missing ) {
-	fwrite( STDERR, "Front page check failed: " . json_encode( $result ) . "\n" );
+	fwrite( STDERR, 'Front page check failed: ' . json_encode( $result ) . "\n" );
 	exit( 1 );
 }
 

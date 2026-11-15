@@ -46,14 +46,16 @@ class Abilities {
 	 * @return void
 	 */
 	public static function register() {
-		if ( ! function_exists( 'wp_register_ability' ) || ! defined( 'KIRKI_VERSION' ) ) {
+		if ( ! function_exists( 'wp_register_ability' ) ) {
 			return;
 		}
-		if ( version_compare( KIRKI_VERSION, '6.0.0', '<' ) || version_compare( KIRKI_VERSION, '7.0.0', '>=' ) ) {
-			return;
+		$definitions = self::definitions();
+		if ( ! Compatibility::supported() ) {
+			$definitions = array(
+				'get-site-context' => $definitions['get-site-context'],
+			);
 		}
-
-		foreach ( self::definitions() as $name => $args ) {
+		foreach ( $definitions as $name => $args ) {
 			wp_register_ability( 'kirki-mcp/' . $name, $args );
 		}
 	}
@@ -103,7 +105,10 @@ class Abilities {
 					'type'       => 'object',
 					'properties' => array(),
 				),
-				array( self::class, 'get_site_context' )
+				array( self::class, 'get_site_context' ),
+				true,
+				false,
+				'read'
 			),
 			'get-element-schema'    => self::tool(
 				'Get the Kirki element schema',
@@ -209,6 +214,27 @@ class Abilities {
 				array( self::class, 'update_page' ),
 				true
 			),
+			'update-page-settings'  => self::tool(
+				'Update SEO settings',
+				'Set the meta description Kirki prints, and an optional SEO title. The description is also stored as the page excerpt.',
+				false,
+				array(
+					'type'       => 'object',
+					'properties' => array(
+						'page_id'          => $page,
+						'meta_description' => array(
+							'type'      => 'string',
+							'minLength' => 1,
+						),
+						'seo_title'        => array(
+							'type' => 'string',
+						),
+					),
+					'required'   => array( 'page_id', 'meta_description' ),
+				),
+				array( self::class, 'update_page_settings' ),
+				true
+			),
 			'add-section'           => self::tool(
 				'Add a section',
 				'Insert one section onto the page body at an optional index. Read the page first if you need to choose a position.',
@@ -254,8 +280,8 @@ class Abilities {
 				'Change text, tag, link, image source, or alt on an existing element. Pass section_id to link a button to a section element id. Does not remove the element.',
 				false,
 				array(
-					'type'       => 'object',
-					'properties' => array(
+					'type'                 => 'object',
+					'properties'           => array(
 						'page_id'       => $page,
 						'element_id'    => array(
 							'type' => 'string',
@@ -293,8 +319,13 @@ class Abilities {
 							'type'  => 'array',
 							'items' => array( 'type' => 'string' ),
 						),
+						'convert'       => array(
+							'type'        => 'boolean',
+							'description' => 'Turn a non-Kirki page into a Kirki page. Omit it to refuse that page.',
+						),
 					),
-					'required'   => array( 'page_id', 'element_id' ),
+					'additionalProperties' => false,
+					'required'             => array( 'page_id', 'element_id' ),
 				),
 				array( self::class, 'update_element' ),
 				true
@@ -369,7 +400,9 @@ class Abilities {
 					'required'   => array( 'page_id' ),
 				),
 				array( self::class, 'publish_page' ),
-				true
+				true,
+				false,
+				'publish_pages'
 			),
 			'trash-page'            => self::tool(
 				'Trash a page',
@@ -388,6 +421,24 @@ class Abilities {
 				array( self::class, 'trash_page' ),
 				false,
 				true
+			),
+			'register-font'         => self::tool(
+				'Register a web font',
+				'Register a Google Fonts stylesheet so Kirki loads it on the front end. The URL must be https://fonts.googleapis.com. Example family: Fraunces. Example url: https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500&display=swap.',
+				false,
+				array(
+					'type'       => 'object',
+					'properties' => array(
+						'family' => array(
+							'type' => 'string',
+						),
+						'url'    => array(
+							'type' => 'string',
+						),
+					),
+					'required'   => array( 'family', 'url' ),
+				),
+				array( self::class, 'register_font' )
 			),
 			'list-global-classes'   => self::tool(
 				'List global classes',
@@ -442,7 +493,7 @@ class Abilities {
 				array(
 					'type'       => 'object',
 					'properties' => array(
-						'colors' => array(
+						'colors'      => array(
 							'type'  => 'array',
 							'items' => array(
 								'type'       => 'object',
@@ -453,7 +504,7 @@ class Abilities {
 								'required'   => array( 'name', 'value' ),
 							),
 						),
-						'fonts'  => array(
+						'fonts'       => array(
 							'type'  => 'array',
 							'items' => array(
 								'type'       => 'object',
@@ -464,7 +515,22 @@ class Abilities {
 								'required'   => array( 'name', 'value' ),
 							),
 						),
-						'sizes'  => array(
+						'text_styles' => array(
+							'type'        => 'array',
+							'description' => 'Named text styles. styles is a map of md, tablet, or mobile to font-size, line-height, letter-spacing, font-weight, and font-style.',
+							'items'       => array(
+								'type'       => 'object',
+								'properties' => array(
+									'name'        => array( 'type' => 'string' ),
+									'font_family' => array( 'type' => 'string' ),
+									'styles'      => array(
+										'type' => 'object',
+									),
+								),
+								'required'   => array( 'name' ),
+							),
+						),
+						'sizes'       => array(
 							'type'  => 'array',
 							'items' => array(
 								'type'       => 'object',
@@ -602,12 +668,29 @@ class Abilities {
 	}
 
 	/**
-	 * @return void
+	 * @return array|\WP_Error
 	 */
 	public static function get_site_context() {
 		return self::guard(
 			function () {
-				return Global_Repository::context();
+				$reason = Compatibility::unsupported_reason();
+				if ( '' !== $reason ) {
+					list( $min, $max ) = Compatibility::range();
+					return array(
+						'supported'       => false,
+						'reason'          => $reason,
+						'kirki_version'   => defined( 'KIRKI_VERSION' ) ? KIRKI_VERSION : '',
+						'plugin_version'  => KIRKI_MCP_VERSION,
+						'supported_range' => array(
+							'minimum' => $min,
+							'below'   => $max,
+						),
+					);
+				}
+				$context                   = Global_Repository::context();
+				$context['supported']      = true;
+				$context['style_variants'] = Css::variant_vocabulary();
+				return $context;
 			}
 		);
 	}
@@ -654,21 +737,50 @@ class Abilities {
 		return self::guard(
 			function () use ( $input ) {
 				$status = isset( $input['status'] ) ? $input['status'] : 'draft';
-				if ( 'publish' === $status && true !== current_user_can( 'publish_pages' ) ) {
-					throw new \InvalidArgumentException( 'Publishing requires the publish_pages capability. Create a draft instead.' );
+				if ( 'publish' === $status && ! Access::can_publish() ) {
+					throw new \InvalidArgumentException( 'Publishing requires Kirki builder access and publish_pages. Create a draft instead.' );
 				}
 				$sections = isset( $input['sections'] ) && is_array( $input['sections'] ) ? $input['sections'] : array();
 				Page_Repository::resolve_classes( $sections );
-				$page_id  = Page_Repository::create(
+				$document = Document::from_sections( $sections );
+				$document->validate( Global_Repository::class_id_list() );
+				$page_id = Page_Repository::create(
 					$input['title'],
 					isset( $input['slug'] ) ? $input['slug'] : '',
-					$status
+					'draft'
 				);
-				$document = Document::from_sections( $sections );
-				Page_Repository::save( $page_id, $document, null );
-				$result          = Page_Repository::present( $page_id );
-				$result['keys']  = $document->keys;
+				try {
+					Page_Repository::save( $page_id, $document, null );
+					if ( 'publish' === $status ) {
+						Page_Repository::publish( $page_id, false );
+					}
+				} catch ( \Throwable $error ) {
+					wp_delete_post( $page_id, true );
+					throw $error;
+				}
+				$result         = Page_Repository::present( $page_id );
+				$result['keys'] = $document->keys;
 				return $result;
+			}
+		);
+	}
+
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
+	public static function update_page_settings( $input ) {
+		return self::guard(
+			function () use ( $input ) {
+				return Page_Repository::update_seo(
+					(int) $input['page_id'],
+					$input['meta_description'],
+					isset( $input['seo_title'] ) ? $input['seo_title'] : ''
+				);
 			}
 		);
 	}
@@ -704,7 +816,8 @@ class Abilities {
 						Page_Repository::resolve_classes( $wrapped );
 						$compiled = $document->insert_section( $wrapped[0], isset( $input['index'] ) ? (int) $input['index'] : null );
 						return $compiled['keys'];
-					}
+					},
+					! empty( $input['convert'] )
 				);
 			}
 		);
@@ -725,7 +838,8 @@ class Abilities {
 						Page_Repository::resolve_classes( $wrapped );
 						$compiled = $document->insert_element( $wrapped[0], (string) $input['parent_id'], isset( $input['index'] ) ? (int) $input['index'] : null );
 						return $compiled['keys'];
-					}
+					},
+					! empty( $input['convert'] )
 				);
 			}
 		);
@@ -742,15 +856,16 @@ class Abilities {
 					(int) $input['page_id'],
 					function ( Document $document ) use ( $input ) {
 						$changes = $input;
-						unset( $changes['page_id'], $changes['element_id'] );
-						if ( ! empty( $changes['classes'] ) && is_array( $changes['classes'] ) ) {
-							$spec = array( array( 'classes' => $changes['classes'] ) );
-							Page_Repository::resolve_classes( $spec );
-							$changes['class_ids'] = $spec[0]['class_ids'];
-						}
+						unset( $changes['page_id'], $changes['element_id'], $changes['class_ids'], $changes['classes'], $changes['convert'] );
 						$document->update_element( (string) $input['element_id'], $changes );
+						if ( ! empty( $input['classes'] ) && is_array( $input['classes'] ) ) {
+							$spec = array( array( 'classes' => $input['classes'] ) );
+							Page_Repository::resolve_classes( $spec );
+							$document->set_class_ids( (string) $input['element_id'], $spec[0]['class_ids'] );
+						}
 						return array();
-					}
+					},
+					! empty( $input['convert'] )
 				);
 			}
 		);
@@ -768,7 +883,8 @@ class Abilities {
 					function ( Document $document ) use ( $input ) {
 						$document->update_styles( (string) $input['element_id'], $input['styles'] );
 						return array();
-					}
+					},
+					! empty( $input['convert'] )
 				);
 			}
 		);
@@ -786,7 +902,8 @@ class Abilities {
 					function ( Document $document ) use ( $input ) {
 						$removed = $document->remove_element( (string) $input['element_id'], ! empty( $input['confirm'] ) );
 						return array( 'removed' => $removed );
-					}
+					},
+					! empty( $input['convert'] )
 				);
 			}
 		);
@@ -812,8 +929,8 @@ class Abilities {
 	public static function publish_page( $input ) {
 		return self::guard(
 			function () use ( $input ) {
-				if ( true !== current_user_can( 'publish_pages' ) ) {
-					throw new \InvalidArgumentException( 'Publishing requires the publish_pages capability.' );
+				if ( ! Access::can_publish() ) {
+					throw new \InvalidArgumentException( 'Publishing requires Kirki builder access and the publish_pages capability.' );
 				}
 				Page_Repository::publish( (int) $input['page_id'], ! empty( $input['set_front'] ) );
 				return Page_Repository::present( (int) $input['page_id'] );
@@ -828,8 +945,8 @@ class Abilities {
 	public static function trash_page( $input ) {
 		return self::guard(
 			function () use ( $input ) {
-				if ( true !== current_user_can( 'delete_pages' ) ) {
-					throw new \InvalidArgumentException( 'Trashing a page requires the delete_pages capability.' );
+				if ( ! Access::can_delete_page( (int) $input['page_id'] ) ) {
+					throw new \InvalidArgumentException( 'Trashing this page requires Kirki builder access and delete_post for the page.' );
 				}
 				Page_Repository::trash( (int) $input['page_id'], ! empty( $input['confirm'] ) );
 				return array(
@@ -878,6 +995,22 @@ class Abilities {
 	 * @param array $input Input.
 	 * @return array|\WP_Error
 	 */
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
+	public static function register_font( $input ) {
+		return self::guard(
+			function () use ( $input ) {
+				return Global_Repository::register_font( $input['family'], $input['url'] );
+			}
+		);
+	}
+
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
 	public static function set_global_variables( $input ) {
 		return self::guard(
 			function () use ( $input ) {
@@ -885,7 +1018,8 @@ class Abilities {
 					'variables' => Global_Repository::set_variables(
 						isset( $input['colors'] ) && is_array( $input['colors'] ) ? $input['colors'] : array(),
 						isset( $input['fonts'] ) && is_array( $input['fonts'] ) ? $input['fonts'] : array(),
-						isset( $input['sizes'] ) && is_array( $input['sizes'] ) ? $input['sizes'] : array()
+						isset( $input['sizes'] ) && is_array( $input['sizes'] ) ? $input['sizes'] : array(),
+						isset( $input['text_styles'] ) && is_array( $input['text_styles'] ) ? $input['text_styles'] : array()
 					),
 				);
 			}
@@ -893,6 +1027,7 @@ class Abilities {
 	}
 
 	/**
+	 * @param array $input Input.
 	 * @return array|\WP_Error
 	 */
 	public static function upload_media( $input ) {
@@ -983,10 +1118,11 @@ class Abilities {
 	 *
 	 * @param int      $page_id Page id.
 	 * @param callable $mutator Receives the document and returns extra keys.
+	 * @param bool     $convert Allow turning a non-Kirki page into a Kirki page.
 	 * @return array
 	 */
-	private static function mutate( $page_id, $mutator ) {
-		$loaded = Page_Repository::load( $page_id );
+	private static function mutate( $page_id, $mutator, $convert = false ) {
+		$loaded = Page_Repository::load( $page_id, $convert );
 		$extra  = call_user_func( $mutator, $loaded['document'] );
 		Page_Repository::save( $page_id, $loaded['document'], $loaded['stage'] );
 		$result = Page_Repository::present( $page_id );
@@ -1017,7 +1153,7 @@ class Abilities {
 	 *
 	 * @param string   $label Label.
 	 * @param string   $description Description.
-	 * @param bool     $readonly Read only.
+	 * @param bool     $read_only Read only.
 	 * @param array    $input_schema Input schema.
 	 * @param callable $callback Callback.
 	 * @param bool     $idempotent Idempotent.
@@ -1025,7 +1161,7 @@ class Abilities {
 	 * @param string   $capability Capability.
 	 * @return array
 	 */
-	private static function tool( $label, $description, $readonly, array $input_schema, $callback, $idempotent = false, $destructive = false, $capability = 'edit_pages' ) {
+	private static function tool( $label, $description, $read_only, array $input_schema, $callback, $idempotent = false, $destructive = false, $capability = 'edit_pages' ) {
 		return array(
 			'label'               => $label,
 			'description'         => $description,
@@ -1033,7 +1169,19 @@ class Abilities {
 			'input_schema'        => $input_schema,
 			'execute_callback'    => $callback,
 			'permission_callback' => function () use ( $capability ) {
-				return true === current_user_can( $capability );
+				if ( 'read' === $capability ) {
+					return Access::can_read_context();
+				}
+				if ( 'publish_pages' === $capability ) {
+					return Access::can_publish();
+				}
+				if ( 'upload_files' === $capability ) {
+					return Access::can_upload();
+				}
+				if ( 'delete_pages' === $capability ) {
+					return Access::can_build();
+				}
+				return Access::can_build();
 			},
 			'meta'                => array(
 				'public'       => true,
@@ -1042,7 +1190,7 @@ class Abilities {
 					'type' => 'tool',
 				),
 				'annotations'  => array(
-					'readonly'    => $readonly,
+					'readonly'    => $read_only,
 					'destructive' => $destructive,
 					'idempotent'  => $idempotent,
 				),
@@ -1080,42 +1228,59 @@ class Abilities {
 	private static function element_schema() {
 		return array(
 			'type'                 => 'object',
-			'description'          => 'An element. type is section, div, heading, paragraph, text, button, image, or link-block. Nested elements go in elements.',
-			'additionalProperties' => true,
+			'description'          => 'An element. type is section, div, heading, paragraph, text, link-text, button, image, link-block, navigation, or form.',
+			'additionalProperties' => false,
 			'properties'           => array(
-				'type'     => array(
+				'type'          => array(
 					'type' => 'string',
 				),
-				'key'      => array(
+				'key'           => array(
 					'type' => 'string',
 				),
-				'text'     => array(
+				'text'          => array(
 					'type' => 'string',
 				),
-				'tag'      => array(
+				'tag'           => array(
 					'type' => 'string',
 				),
-				'href'     => array(
+				'href'          => array(
 					'type' => 'string',
 				),
-				'link_key' => array(
+				'link_key'      => array(
 					'type' => 'string',
 				),
-				'target'   => array(
+				'target'        => array(
 					'type' => 'string',
 				),
-				'src'      => array(
+				'src'           => array(
 					'type' => 'string',
 				),
-				'alt'      => array(
+				'alt'           => array(
 					'type' => 'string',
 				),
-				'styles'   => self::style_schema(),
-				'classes'  => array(
+				'styles'        => self::style_schema(),
+				'classes'       => array(
 					'type'  => 'array',
 					'items' => array( 'type' => 'string' ),
 				),
-				'elements' => array(
+				'inline'        => array(
+					'type'        => 'array',
+					'description' => 'Mixed strings and links for heading, paragraph, or text. A link is an object with text and href.',
+				),
+				'items'         => array(
+					'type'        => 'array',
+					'description' => 'Navigation items with text and href or link_key.',
+				),
+				'email'         => array( 'type' => 'string' ),
+				'subject'       => array( 'type' => 'string' ),
+				'name'          => array( 'type' => 'string' ),
+				'title'         => array( 'type' => 'string' ),
+				'fields'        => array(
+					'type'        => 'array',
+					'description' => 'Form fields with name, label, type, and required.',
+				),
+				'attachment_id' => array( 'type' => 'integer' ),
+				'elements'      => array(
 					'type'  => 'array',
 					'items' => array(
 						'type'                 => 'object',

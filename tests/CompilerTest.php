@@ -113,7 +113,7 @@ class CompilerTest extends TestCase {
 	 * Removing an element requires an explicit flag and drops its style block.
 	 */
 	public function test_remove_requires_confirm_and_drops_the_subtree() {
-		$document = Document::from_sections(
+		$document  = Document::from_sections(
 			array(
 				array(
 					'elements' => array(
@@ -129,7 +129,7 @@ class CompilerTest extends TestCase {
 				),
 			)
 		);
-		$section  = $document->blocks['body']['children'][0];
+		$section   = $document->blocks['body']['children'][0];
 		$paragraph = $document->blocks[ $section ]['children'][1];
 
 		try {
@@ -161,8 +161,8 @@ class CompilerTest extends TestCase {
 				),
 			)
 		);
-		$section = $document->blocks['body']['children'][0];
-		$heading = $document->blocks[ $section ]['children'][0];
+		$section  = $document->blocks['body']['children'][0];
+		$heading  = $document->blocks[ $section ]['children'][0];
 		$document->update_styles( $heading, array( 'tablet' => 'font-size:28px' ) );
 		$style_id = $document->blocks[ $heading ]['styleIds'][0];
 		$this->assertSame( 'font-size:28px;', $document->styles[ $style_id ]['variant']['tablet'] );

@@ -88,6 +88,7 @@ Use [`@automattic/mcp-wordpress-remote`](https://github.com/Automattic/mcp-wordp
 | `kirki-mcp/get-page` | Compact tree, styles, editor URL |
 | `kirki-mcp/create-page` | Draft or published page from sections |
 | `kirki-mcp/update-page` | Title and slug |
+| `kirki-mcp/update-page-settings` | SEO title and meta description |
 | `kirki-mcp/add-section` | Insert a section |
 | `kirki-mcp/add-element` | Insert an element under a parent |
 | `kirki-mcp/update-element` | Text, tag, link, image |
@@ -99,7 +100,8 @@ Use [`@automattic/mcp-wordpress-remote`](https://github.com/Automattic/mcp-wordp
 | `kirki-mcp/list-global-classes` | Global classes |
 | `kirki-mcp/upsert-global-class` | Create or update a global class |
 | `kirki-mcp/list-global-variables` | Colors, sizes, fonts |
-| `kirki-mcp/set-global-variables` | Upsert colors, fonts, and sizes |
+| `kirki-mcp/set-global-variables` | Upsert colors, font stacks, sizes, and text styles |
+| `kirki-mcp/register-font` | Load a Google Fonts stylesheet |
 | `kirki-mcp/upload-media` | Image upload through `POST /wp/v2/media` |
 | `kirki-mcp/list-symbols` | Symbols, including header and footer |
 | `kirki-mcp/get-symbol` | One symbol's tree |
@@ -135,8 +137,10 @@ Checked against Kirki 6.4.2:
 
 - Creating and editing symbols is not in `/wp-json/kirki/v1`. Kirki still does that through `admin-ajax.php` (`save-user-saved-symbol-data` and `update-user-saved-symbol-data`), and that handler requires a `wp_rest` nonce. An application password does not send one. New symbols go through Kirki's `SymbolManager`. Updates are written by this plugin as JSON arrays, because `SymbolManager` always inserts a new symbol.
 - Kirki's media route is `GET /wp-json/kirki/v1/media` only. Uploads are the ajax action `upload-media`, which has the same nonce requirement. `kirki-mcp/upload-media` stores the file with WordPress core `POST /wp/v2/media`. You can also post to that endpoint directly with the same application password, then pass the attachment id to an image element.
-- `Template::save_template_data()` saves with staging left off, so it would overwrite published meta. This plugin does not call it. Page writes go to an unpublished Kirki stage when one exists, and `publish-page` promotes that stage.
-- Agent input is JSON. The plugin does not call `unserialize()` or `maybe_unserialize()`. Stored symbol and page meta that contains a PHP object is refused.
+- `Template::save_template_data()` saves with staging left off, so it would overwrite published meta. This plugin does not call it.
+- Edits to a page that is already published are stored on a new unpublished Kirki stage. The live page stays as it was until `publish-page`. That ability copies the stage onto published post meta and then asks Kirki to record the version. Kirki's own publish helper only fills empty published keys, so copying first is required. Drafts are written to post meta because they are not public yet.
+- A new header or footer is validated and saved before the previous symbol loses that role.
+- Agent input is JSON. The plugin does not call `unserialize()` or `maybe_unserialize()`. If post meta comes back as a PHP object, it is refused. WordPress has already unserialized its own meta storage by then; this is a guard against using that value, not a way to stop WordPress reading its database.
 
 Application passwords are a WordPress core feature. On a live site they require HTTPS. A local environment (`WP_ENVIRONMENT_TYPE=local`) can use them over HTTP.
 
@@ -146,7 +150,7 @@ Application passwords are a WordPress core feature. On a live site they require 
 - Text is stored as plain text. Kirki escapes it when rendering.
 - CSS is rejected when it contains markup, `expression()`, `javascript:`, or `@import`.
 - `remove-element` and `trash-page` refuse to run unless `confirm` is `true`.
-- If the Kirki editor has an unpublished stage, later edits go to that stage. `publish-page` promotes it. Otherwise edits are written to the published post meta the editor reads.
+- Edits to a published page stay on an unpublished Kirki stage until `publish-page`. Drafts are saved in post meta. `writing_to` on each page response says which of the two happened.
 
 ## Development
 
@@ -155,7 +159,7 @@ php phpunit.phar --configuration phpunit.xml.dist
 bash bin/build-zip.sh
 ```
 
-The zip is written to `dist/kirki-mcp-0.1.0.zip`.
+The zip is written to `dist/kirki-mcp-0.2.0.zip`.
 
 ## Known gaps
 

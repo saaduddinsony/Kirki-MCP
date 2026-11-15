@@ -63,13 +63,14 @@ class Symbol_Repository {
 	 * @return array
 	 */
 	public static function get( $symbol_id ) {
-		$post = self::symbol( $symbol_id );
-		$data = self::read_meta( $post->ID );
-		$document = Document::from_stored(
+		$post     = self::symbol( $symbol_id );
+		$data     = self::read_meta( $post->ID );
+		$root     = isset( $data['root'] ) ? (string) $data['root'] : 'root';
+		$document = Document::from_symbol(
 			isset( $data['data'] ) ? $data['data'] : array(),
-			isset( $data['styleBlocks'] ) ? $data['styleBlocks'] : array()
+			isset( $data['styleBlocks'] ) ? $data['styleBlocks'] : array(),
+			$root
 		);
-		$root = isset( $data['root'] ) ? $data['root'] : 'root';
 		return array(
 			'id'       => (int) $post->ID,
 			'name'     => isset( $data['name'] ) ? $data['name'] : $post->post_title,
@@ -91,11 +92,7 @@ class Symbol_Repository {
 		Page_Repository::assert_ready();
 		$name   = self::name( $name );
 		$set_as = self::role( $role );
-		if ( '' !== $set_as ) {
-			self::clear_role( $set_as, 0 );
-		}
-
-		$built = Json_Data::only_array( self::build( 0, $name, $set_as, $sections ), 'Symbol' );
+		$built  = self::validated_symbol( 0, $name, $set_as, $sections );
 		if ( ! class_exists( '\Kirki\App\Managers\SymbolManager' ) || ! class_exists( '\Kirki\App\DTO\Symbol\SymbolDTO' ) ) {
 			throw new \RuntimeException( 'Kirki SymbolManager is not available.' );
 		}
@@ -119,6 +116,9 @@ class Symbol_Repository {
 				'post_status' => 'draft',
 			)
 		);
+		if ( '' !== $set_as ) {
+			self::assign_role( $set_as, $post_id );
+		}
 
 		return self::get( $post_id );
 	}
@@ -141,7 +141,7 @@ class Symbol_Repository {
 		}
 
 		if ( null !== $name && '' !== $name ) {
-			$name = self::name( $name );
+			$name         = self::name( $name );
 			$data['name'] = $name;
 			wp_update_post(
 				array(
@@ -151,24 +151,24 @@ class Symbol_Repository {
 			);
 		}
 
+		$next_role = isset( $data['setAs'] ) ? $data['setAs'] : '';
 		if ( null !== $role ) {
-			$set_as = self::role( $role );
-			if ( '' !== $set_as ) {
-				self::clear_role( $set_as, $post->ID );
-			}
-			$data['setAs']    = $set_as;
-			$data['category'] = '' !== $set_as ? $set_as : 'other';
+			$next_role = self::role( $role );
 		}
-
 		if ( null !== $sections ) {
-			$built = self::build( $post->ID, isset( $data['name'] ) ? $data['name'] : $post->post_title, isset( $data['setAs'] ) ? $data['setAs'] : '', $sections );
+			$built               = self::validated_symbol( $post->ID, isset( $data['name'] ) ? $data['name'] : $post->post_title, $next_role, $sections );
 			$data['data']        = $built['data'];
 			$data['styleBlocks'] = $built['styleBlocks'];
 			$data['root']        = 'root';
 		}
+		$data['setAs']    = $next_role;
+		$data['category'] = '' !== $next_role ? $next_role : 'other';
 
 		update_post_meta( $post->ID, 'kirki', $data );
 		update_post_meta( $post->ID, 'kirki_editor_mode', 'kirki' );
+		if ( '' !== $next_role ) {
+			self::assign_role( $next_role, $post->ID );
+		}
 		return self::get( $post->ID );
 	}
 
@@ -199,22 +199,42 @@ class Symbol_Repository {
 	}
 
 	/**
-	 * Write a new symbol document.
+	 * Build a symbol and reject it before any header or footer role changes.
 	 *
-	 * @param int    $post_id Post id.
+	 * @param int    $post_id Post id, or 0 before Kirki inserts the post.
 	 * @param string $name Name.
-	 * @param string $role Role.
+	 * @param string $set_as Role.
 	 * @param array  $sections Sections.
+	 * @return array
+	 */
+	private static function validated_symbol( $post_id, $name, $set_as, array $sections ) {
+		$built    = Json_Data::only_array( self::build( $post_id, $name, $set_as, $sections ), 'Symbol' );
+		$document = Document::from_symbol( $built['data'], $built['styleBlocks'], 'root' );
+		$document->validate( Global_Repository::class_id_list(), 'symbol', 'root' );
+		return $built;
+	}
+
+	/**
+	 * Give one symbol a role, then clear that role on the others.
+	 *
+	 * The new symbol is already saved. If clearing the previous holder fails,
+	 * this symbol's role is removed so the site is not left with two headers.
+	 *
+	 * @param string $role header or footer.
+	 * @param int    $post_id Symbol that should keep the role.
 	 * @return void
 	 */
-	private static function write( $post_id, $name, $role, array $sections ) {
-		$set_as = self::role( $role );
-		if ( '' !== $set_as ) {
-			self::clear_role( $set_as, $post_id );
+	private static function assign_role( $role, $post_id ) {
+		try {
+			self::clear_role( $role, $post_id );
+		} catch ( \Throwable $error ) {
+			$data = self::read_meta( $post_id );
+			if ( $data ) {
+				$data['setAs'] = '';
+				update_post_meta( $post_id, 'kirki', $data );
+			}
+			throw new \RuntimeException( 'The symbol was saved, but the previous ' . $role . ' could not be unassigned, so this symbol was left unassigned too.' );
 		}
-		$built = self::build( $post_id, $name, $set_as, $sections );
-		update_post_meta( $post_id, 'kirki', $built );
-		update_post_meta( $post_id, 'kirki_editor_mode', 'kirki' );
 	}
 
 	/**
@@ -238,7 +258,7 @@ class Symbol_Repository {
 			}
 		}
 
-		$style_id           = Ids::make( $styles );
+		$style_id            = Ids::make( $styles );
 		$styles[ $style_id ] = array(
 			'id'        => $style_id,
 			'type'      => 'class',

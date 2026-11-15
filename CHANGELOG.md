@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.0
+
+- Published pages are edited on an unpublished Kirki stage. `publish-page` copies that stage onto the live post meta before Kirki records the version, so a later publish no longer keeps the old content.
+- Header and footer roles are reassigned only after the new symbol validates and saves.
+- `get-symbol` returns the symbol's own tree.
+- Page graphs without `root` and `body` are rejected instead of being replaced with a blank page. Saves check parent and child links and reject cycles.
+- Permissions follow Kirki's administrator and editor role map, plus the matching WordPress capability. Editors can change global classes and variables. Other roles with `edit_pages` cannot.
+- CSS declarations cannot contain braces or `@` rules. Variant keys must be a real viewport plus `hover`, `active`, `focus`, `before`, `after`, or `placeholder`.
+- Font stacks are quoted per family. `register-font` stores a `fonts.googleapis.com` stylesheet in Kirki's custom fonts. Text styles can be saved as variables.
+- `update-element` ignores raw class ids and only accepts class names. Non-Kirki pages are not converted unless `convert` is true.
+- New elements for the Makerspace build: `navigation` with a mobile menu, `form` with email delivery, `link-text`, and inline links inside text. `update-page-settings` sets the meta description.
+- Supported Kirki range defaults to 6.4.x. `get-site-context` stays available and explains a mismatch. The `kirki_mcp_supported_kirki_range` filter can widen it.
+- Duplicating a page uses Kirki's duplicate, then copies SEO and variable-mode meta.
+
 ## 0.1.0
 
 First working release.

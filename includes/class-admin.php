@@ -50,14 +50,9 @@ class Admin {
 			echo '<div class="notice notice-error"><p>' . esc_html__( 'Kirki MCP needs the free Kirki 6 plugin to be active.', 'kirki-mcp' ) . '</p></div>';
 			return;
 		}
-		if ( version_compare( KIRKI_VERSION, '6.0.0', '<' ) || version_compare( KIRKI_VERSION, '7.0.0', '>=' ) ) {
-			echo '<div class="notice notice-error"><p>' . esc_html(
-				sprintf(
-					/* translators: %s: installed Kirki version */
-					__( 'Kirki MCP supports Kirki 6.x. This site is running %s.', 'kirki-mcp' ),
-					KIRKI_VERSION
-				)
-			) . '</p></div>';
+		$reason = Compatibility::unsupported_reason();
+		if ( '' !== $reason ) {
+			echo '<div class="notice notice-error"><p>' . esc_html( $reason ) . '</p></div>';
 		}
 		if ( ! defined( 'WP_MCP_VERSION' ) && ! class_exists( '\WP\MCP\Plugin' ) ) {
 			echo '<div class="notice notice-warning"><p>' . esc_html__( 'Kirki MCP abilities are registered. Install and activate the official MCP Adapter plugin so agents can call them over MCP.', 'kirki-mcp' ) . '</p></div>';

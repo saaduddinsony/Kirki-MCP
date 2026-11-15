@@ -45,15 +45,19 @@ class Media_Repository {
 		}
 
 		$encoded = preg_replace( '/\s+/', '', (string) $data_base64 );
-		$binary  = base64_decode( $encoded, true );
+		if ( strlen( $encoded ) > (int) ceil( self::MAX_BYTES * 4 / 3 ) + 4 ) {
+			throw new \InvalidArgumentException( 'Images must be 5 MB or smaller.' );
+		}
+		$binary = base64_decode( $encoded, true ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode -- Image bytes from the agent, then checked with getimagesizefromstring.
 		if ( ! is_string( $binary ) || '' === $binary ) {
 			throw new \InvalidArgumentException( 'data_base64 is not valid base64.' );
 		}
 		if ( strlen( $binary ) > self::MAX_BYTES ) {
 			throw new \InvalidArgumentException( 'Images must be 5 MB or smaller.' );
 		}
-		if ( ! function_exists( 'getimagesizefromstring' ) || false === @getimagesizefromstring( $binary ) ) {
-			throw new \InvalidArgumentException( 'The upload is not a readable image.' );
+		$image_info = function_exists( 'getimagesizefromstring' ) ? getimagesizefromstring( $binary ) : false;
+		if ( ! is_array( $image_info ) || empty( $image_info['mime'] ) || $image_info['mime'] !== $checked['type'] ) {
+			throw new \InvalidArgumentException( 'The file contents do not match the image extension.' );
 		}
 
 		$alt = sanitize_text_field( $alt );
