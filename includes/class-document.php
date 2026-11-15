@@ -172,6 +172,9 @@ class Document {
 	public function insert_element( array $spec, $parent_id, $index = null ) {
 		$this->assert_exists( $parent_id );
 		$type = isset( $spec['type'] ) ? (string) $spec['type'] : '';
+		if ( ! in_array( $type, Spec_Compiler::element_types(), true ) ) {
+			throw new \InvalidArgumentException( 'Unknown element type "' . $type . '". Supported: ' . implode( ', ', Spec_Compiler::element_types() ) . '.' );
+		}
 		$this->assert_can_contain( $parent_id, $type );
 		$compiled = Spec_Compiler::compile_element_tree( $spec, $parent_id );
 		$this->absorb( $compiled['blocks'], $compiled['styles'], $compiled['keys'] );
@@ -646,10 +649,10 @@ class Document {
 	private function assert_can_contain( $parent_id, $child_type ) {
 		$parent = $this->blocks[ $parent_id ]['name'];
 		$ok     = array(
-			'body'       => array( 'section', 'div', 'heading', 'paragraph', 'text', 'button', 'image', 'link-block' ),
-			'section'    => array( 'section', 'div', 'heading', 'paragraph', 'text', 'button', 'image', 'link-block' ),
-			'div'        => array( 'section', 'div', 'heading', 'paragraph', 'text', 'button', 'image', 'link-block' ),
-			'link-block' => array( 'div', 'heading', 'paragraph', 'text', 'button', 'image' ),
+			'body'       => array( 'section', 'div', 'heading', 'paragraph', 'text', 'button', 'image', 'link-block', 'link-text', 'navigation', 'form', 'list' ),
+			'section'    => array( 'section', 'div', 'heading', 'paragraph', 'text', 'button', 'image', 'link-block', 'link-text', 'navigation', 'form', 'list' ),
+			'div'        => array( 'section', 'div', 'heading', 'paragraph', 'text', 'button', 'image', 'link-block', 'link-text', 'navigation', 'form', 'list' ),
+			'link-block' => array( 'div', 'heading', 'paragraph', 'text', 'button', 'image', 'list', 'link-text' ),
 			'button'     => array( 'text', 'heading' ),
 		);
 		if ( ! isset( $ok[ $parent ] ) || ! in_array( $child_type, $ok[ $parent ], true ) ) {

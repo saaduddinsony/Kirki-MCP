@@ -35,7 +35,7 @@ class Css {
 			throw new \InvalidArgumentException( 'A CSS variant is longer than ' . self::MAX_LENGTH . ' characters.' );
 		}
 
-		if ( preg_match( '/[{}\\\\@]|expression\s*\(|javascript\s*:|behavior\s*:|-moz-binding|<\/?\s*style/i', $css ) ) {
+		if ( preg_match( '/[{}\\\\@]|\/\*|expression\s*\(|javascript\s*:|behavior\s*:|-moz-binding|<\/?\s*style/i', $css ) ) {
 			throw new \InvalidArgumentException( 'That CSS was rejected. Use declarations only, such as color:#fff;padding:24px. Braces, @-rules, and backslashes are not allowed.' );
 		}
 

@@ -159,6 +159,23 @@ class Page_Repository {
 			// A draft lives in post meta. Create the published version record once, after the meta is written.
 			\Kirki\App\Supports\Facades\Page::get_all_staged_versions( $page_id, true );
 		}
+		self::use_current_global_classes( $page_id );
+	}
+
+	/**
+	 * Pages created by Kirki's first-version helper are marked as legacy and
+	 * then ignore the class manager. Clear that flag so global classes load.
+	 *
+	 * @param int $page_id Page id.
+	 * @return void
+	 */
+	private static function use_current_global_classes( $page_id ) {
+		if ( ! class_exists( '\Kirki\App\Models\PageStage' ) ) {
+			return;
+		}
+		\Kirki\App\Models\PageStage::query()
+			->where( 'post_id', (int) $page_id )
+			->update( array( 'no_legacy_global_style' => 1 ) );
 	}
 
 	/**
@@ -233,6 +250,53 @@ class Page_Repository {
 			'meta_description' => $description,
 			'seo_title'        => isset( $seo['seoSettings']['seoTitleTag']['value'] ) ? $seo['seoSettings']['seoTitleTag']['value'] : '',
 		);
+	}
+
+	/**
+	 * Page head or body custom code, in the shape Kirki prints.
+	 *
+	 * @param int    $page_id Page id.
+	 * @param string $head Head HTML, usually a style block.
+	 * @param string $body Markup printed at the start of the body.
+	 * @return array
+	 */
+	public static function update_custom_code( $page_id, $head, $body ) {
+		$post = self::page( $page_id );
+		$head = self::custom_code_value( $head );
+		$body = self::custom_code_value( $body );
+		$code = get_post_meta( $post->ID, 'kirki_page_custom_code', true );
+		if ( ! is_array( $code ) ) {
+			$code = array();
+		}
+		if ( '' !== $head ) {
+			$code['head'] = array( 'value' => $head );
+		}
+		if ( '' !== $body ) {
+			$code['body'] = array( 'value' => $body );
+		}
+		update_post_meta( $post->ID, 'kirki_page_custom_code', $code );
+		return array(
+			'page_id' => (int) $post->ID,
+			'head'    => isset( $code['head']['value'] ) ? $code['head']['value'] : '',
+			'body'    => isset( $code['body']['value'] ) ? $code['body']['value'] : '',
+		);
+	}
+
+	/**
+	 * Reject scripts in custom code. Style and plain markup are allowed.
+	 *
+	 * @param string $code Raw code.
+	 * @return string
+	 */
+	private static function custom_code_value( $code ) {
+		$code = trim( (string) $code );
+		if ( strlen( $code ) > 20000 ) {
+			throw new \InvalidArgumentException( 'Custom code is limited to 20,000 characters.' );
+		}
+		if ( preg_match( '/<\s*script|javascript\s*:|on[a-z]+\s*=/i', $code ) ) {
+			throw new \InvalidArgumentException( 'Custom code cannot include scripts or event handlers.' );
+		}
+		return $code;
 	}
 
 	/**
@@ -363,6 +427,12 @@ class Page_Repository {
 		if ( $copy_id <= 0 ) {
 			throw new \RuntimeException( 'Kirki did not duplicate the page.' );
 		}
+		wp_update_post(
+			array(
+				'ID'         => $copy_id,
+				'post_title' => get_post_field( 'post_title', $copy_id ),
+			)
+		);
 		foreach ( array( 'kirki_page_seo_settings', 'kirki_page_custom_code', 'kirki_disabled_page_symbols', 'kirki_variable_mode' ) as $key ) {
 			$value = get_post_meta( $post->ID, $key, true );
 			if ( '' !== $value && array() !== $value && null !== $value ) {

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.1
+
+- An element that has a global class no longer gets Kirki's default local declarations, which were painting over the class. Styles set on that element are marked important so they still override the class.
+- Pages are marked to use the current class manager, so Kirki includes those classes in the front-end CSS.
+- Setting a font variable registers each family with Kirki's custom fonts as a `fonts.googleapis.com` stylesheet. Kirki prints the link tag.
+- A section `key` or `anchor` is stored as the element title, which is what Kirki turns into the HTML id. Other elements get the same id attribute.
+- `list` renders a `ul` or `ol`. `hide_on` hides an element on `md`, `tablet`, or `mobile`. `update-custom-code` writes the head and body code Kirki prints. Unknown element types name the supported list.
+
 ## 0.2.0
 
 - Published pages are edited on an unpublished Kirki stage. `publish-page` copies that stage onto the live post meta before Kirki records the version, so a later publish no longer keeps the old content.

@@ -271,8 +271,11 @@ class Global_Repository {
 		foreach ( $colors as $color ) {
 			self::upsert_variable( $groups[ $index['color'] ], 'color', $color, Css::color( isset( $color['value'] ) ? $color['value'] : '' ) );
 		}
+		$loaded_fonts = array();
 		foreach ( $fonts as $font ) {
-			self::upsert_variable( $groups[ $index['font-family'] ], 'font-family', $font, Css::font_family( isset( $font['value'] ) ? $font['value'] : '' ) );
+			$stack = Css::font_family( isset( $font['value'] ) ? $font['value'] : '' );
+			self::upsert_variable( $groups[ $index['font-family'] ], 'font-family', $font, $stack );
+			$loaded_fonts = array_merge( $loaded_fonts, self::load_stack( $stack, isset( $font['url'] ) ? (string) $font['url'] : '' ) );
 		}
 		foreach ( $text_styles as $style ) {
 			if ( ! is_array( $style ) ) {
@@ -336,7 +339,50 @@ class Global_Repository {
 
 		$saved['variableData'] = array( 'data' => array_values( $groups ) );
 		\Kirki\App\Supports\Facades\GlobalData::update_global_ui_saved_data( $saved );
-		return self::list_variables();
+		return array(
+			'variables'    => self::list_variables(),
+			'fonts_loaded' => $loaded_fonts,
+		);
+	}
+
+	/**
+	 * Register every non-generic family in a stack with Kirki's custom fonts.
+	 *
+	 * @param string $stack Quoted CSS font stack.
+	 * @param string $url Optional Google Fonts stylesheet for the whole stack.
+	 * @return array
+	 */
+	private static function load_stack( $stack, $url ) {
+		$loaded  = array();
+		$generic = array( 'serif', 'sans-serif', 'monospace', 'cursive', 'fantasy', 'system-ui', 'ui-sans-serif', 'ui-serif', 'ui-monospace', 'emoji', 'math', 'fangsong' );
+		$names   = array();
+		foreach ( explode( ',', $stack ) as $part ) {
+			$name = trim( $part, " \t\"'" );
+			if ( '' === $name || in_array( strtolower( $name ), $generic, true ) ) {
+				continue;
+			}
+			$names[] = $name;
+		}
+		if ( ! $names ) {
+			return $loaded;
+		}
+		if ( '' !== $url ) {
+			self::register_font( $names[0], $url );
+			$loaded[] = array(
+				'family'   => $names[0],
+				'font_url' => $url,
+			);
+			return $loaded;
+		}
+		foreach ( $names as $name ) {
+			$font_url = 'https://fonts.googleapis.com/css2?family=' . str_replace( ' ', '+', $name ) . '&display=swap';
+			self::register_font( $name, $font_url );
+			$loaded[] = array(
+				'family'   => $name,
+				'font_url' => $font_url,
+			);
+		}
+		return $loaded;
 	}
 
 	/**

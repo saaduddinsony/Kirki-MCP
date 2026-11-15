@@ -151,6 +151,59 @@ class FixesTest extends TestCase {
 	/**
 	 * Raw class ids cannot be written onto an element.
 	 */
+	/**
+	 * A classed element does not keep the local defaults that were covering the class.
+	 */
+	public function test_classed_elements_drop_default_css_and_keys_become_anchors() {
+		$document = Document::from_sections(
+			array(
+				array(
+					'key'      => 'damex-digital',
+					'elements' => array(
+						array(
+							'type'    => 'heading',
+							'tag'     => 'h1',
+							'text'    => 'Hello',
+							'classes' => array( 't-display' ),
+							'styles'  => array( 'md' => 'color:#111' ),
+						),
+						array(
+							'type'    => 'list',
+							'items'   => array( 'One', 'Two' ),
+							'hide_on' => array( 'mobile' ),
+						),
+					),
+				),
+			)
+		);
+		$section = $document->blocks['body']['children'][0];
+		$this->assertSame( 'damex-digital', $document->blocks[ $section ]['title'] );
+		$heading = $document->blocks[ $section ]['children'][0];
+		$css     = $document->styles[ $document->blocks[ $heading ]['styleIds'][0] ]['variant']['md'];
+		$this->assertStringNotContainsString( 'font-size:16px', $css );
+		$this->assertStringContainsString( 'color:#111 !important', $css );
+		$list = $document->blocks[ $section ]['children'][1];
+		$this->assertTrue( $document->blocks[ $list ]['properties']['isTextList'] );
+		$this->assertSame( 'display:none;', $document->styles[ $document->blocks[ $list ]['styleIds'][0] ]['variant']['mobile'] );
+	}
+
+	/**
+	 * An unknown element type names the supported types.
+	 */
+	public function test_unknown_element_type_is_explicit() {
+		$document = Document::blank();
+		try {
+			$document->insert_element( array( 'type' => 'widget' ), 'body', null );
+			$this->fail( 'An unknown element type should be rejected.' );
+		} catch ( InvalidArgumentException $error ) {
+			$this->assertStringContainsString( 'Unknown element type "widget"', $error->getMessage() );
+			$this->assertStringContainsString( 'form', $error->getMessage() );
+		}
+	}
+
+	/**
+	 * Raw class ids cannot be written onto an element.
+	 */
 	public function test_raw_class_ids_are_rejected() {
 		$document = Document::from_sections(
 			array(

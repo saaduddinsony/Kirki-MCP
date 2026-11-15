@@ -4,7 +4,7 @@ Tags: kirki, mcp, ai, page-builder, abilities
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.2.0
+Stable tag: 0.2.1
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -52,6 +52,12 @@ Kirki 6.x. It was tested with 6.4.2. Kirki 7 is not supported yet.
 Yes, with `kirki-mcp/publish-page`, and only when the user can publish pages.
 
 == Changelog ==
+
+= 0.2.1 =
+* Global classes style elements, because classed elements no longer keep the default local CSS that was covering them.
+* Font variables register a Google Fonts stylesheet through Kirki's custom fonts.
+* A section key becomes the HTML id used by anchors.
+* Lists, per-viewport hiding, and page custom code.
 
 = 0.2.0 =
 * Stage edits on published pages and publish them without discarding the stage.

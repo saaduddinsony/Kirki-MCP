@@ -214,6 +214,27 @@ class Abilities {
 				array( self::class, 'update_page' ),
 				true
 			),
+			'update-custom-code'    => self::tool(
+				'Update page custom code',
+				'Set the head or body custom code Kirki prints for one page. Use this for a style block or :root aliases. Scripts and event handlers are rejected.',
+				false,
+				array(
+					'type'       => 'object',
+					'properties' => array(
+						'page_id' => $page,
+						'head'    => array(
+							'type'        => 'string',
+							'description' => 'HTML printed in the head, such as a style element.',
+						),
+						'body'    => array(
+							'type' => 'string',
+						),
+					),
+					'required'   => array( 'page_id' ),
+				),
+				array( self::class, 'update_custom_code' ),
+				true
+			),
 			'update-page-settings'  => self::tool(
 				'Update SEO settings',
 				'Set the meta description Kirki prints, and an optional SEO title. The description is also stored as the page excerpt.',
@@ -773,6 +794,26 @@ class Abilities {
 	 * @param array $input Input.
 	 * @return array|\WP_Error
 	 */
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
+	public static function update_custom_code( $input ) {
+		return self::guard(
+			function () use ( $input ) {
+				return Page_Repository::update_custom_code(
+					(int) $input['page_id'],
+					isset( $input['head'] ) ? $input['head'] : '',
+					isset( $input['body'] ) ? $input['body'] : ''
+				);
+			}
+		);
+	}
+
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
 	public static function update_page_settings( $input ) {
 		return self::guard(
 			function () use ( $input ) {
@@ -1014,13 +1055,11 @@ class Abilities {
 	public static function set_global_variables( $input ) {
 		return self::guard(
 			function () use ( $input ) {
-				return array(
-					'variables' => Global_Repository::set_variables(
-						isset( $input['colors'] ) && is_array( $input['colors'] ) ? $input['colors'] : array(),
-						isset( $input['fonts'] ) && is_array( $input['fonts'] ) ? $input['fonts'] : array(),
-						isset( $input['sizes'] ) && is_array( $input['sizes'] ) ? $input['sizes'] : array(),
-						isset( $input['text_styles'] ) && is_array( $input['text_styles'] ) ? $input['text_styles'] : array()
-					),
+				return Global_Repository::set_variables(
+					isset( $input['colors'] ) && is_array( $input['colors'] ) ? $input['colors'] : array(),
+					isset( $input['fonts'] ) && is_array( $input['fonts'] ) ? $input['fonts'] : array(),
+					isset( $input['sizes'] ) && is_array( $input['sizes'] ) ? $input['sizes'] : array(),
+					isset( $input['text_styles'] ) && is_array( $input['text_styles'] ) ? $input['text_styles'] : array()
 				);
 			}
 		);
@@ -1228,14 +1267,28 @@ class Abilities {
 	private static function element_schema() {
 		return array(
 			'type'                 => 'object',
-			'description'          => 'An element. type is section, div, heading, paragraph, text, link-text, button, image, link-block, navigation, or form.',
+			'description'          => 'An element. type is section, div, heading, paragraph, text, link-text, button, image, link-block, navigation, form, or list.',
 			'additionalProperties' => false,
 			'properties'           => array(
 				'type'          => array(
 					'type' => 'string',
 				),
 				'key'           => array(
-					'type' => 'string',
+					'type'        => 'string',
+					'description' => 'Stable name. A section key becomes its HTML id, so a key of damex-digital is the target of /work/#damex-digital.',
+				),
+				'anchor'        => array(
+					'type'        => 'string',
+					'description' => 'HTML id. Overrides key for the id only.',
+				),
+				'hide_on'       => array(
+					'type'        => 'array',
+					'description' => 'Viewports to hide: md, tablet, or mobile.',
+					'items'       => array( 'type' => 'string' ),
+				),
+				'ordered'       => array(
+					'type'        => 'boolean',
+					'description' => 'True renders a numbered list.',
 				),
 				'text'          => array(
 					'type' => 'string',

@@ -89,6 +89,7 @@ Use [`@automattic/mcp-wordpress-remote`](https://github.com/Automattic/mcp-wordp
 | `kirki-mcp/create-page` | Draft or published page from sections |
 | `kirki-mcp/update-page` | Title and slug |
 | `kirki-mcp/update-page-settings` | SEO title and meta description |
+| `kirki-mcp/update-custom-code` | Head and body code Kirki prints on one page |
 | `kirki-mcp/add-section` | Insert a section |
 | `kirki-mcp/add-element` | Insert an element under a parent |
 | `kirki-mcp/update-element` | Text, tag, link, image |
@@ -159,7 +160,7 @@ php phpunit.phar --configuration phpunit.xml.dist
 bash bin/build-zip.sh
 ```
 
-The zip is written to `dist/kirki-mcp-0.2.0.zip`.
+The zip is written to `dist/kirki-mcp-0.2.1.zip`.
 
 ## Known gaps
 

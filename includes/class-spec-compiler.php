@@ -30,7 +30,7 @@ class Spec_Compiler {
 	 * @return string[]
 	 */
 	public static function element_types() {
-		return array( 'section', 'div', 'heading', 'paragraph', 'text', 'button', 'image', 'link-block', 'link-text', 'navigation', 'form' );
+		return array( 'section', 'div', 'heading', 'paragraph', 'text', 'button', 'image', 'link-block', 'link-text', 'navigation', 'form', 'list' );
 	}
 
 	/**
@@ -250,12 +250,22 @@ class Spec_Compiler {
 			$id = Ids::make( $blocks );
 		}
 
-		$style_id = self::add_style( $styles, self::variants_for( $type, isset( $spec['styles'] ) ? $spec['styles'] : array() ) );
+		$has_classes = ( ! empty( $spec['classes'] ) && is_array( $spec['classes'] ) ) || ( ! empty( $spec['class_ids'] ) && is_array( $spec['class_ids'] ) );
+		$style_id    = self::add_style(
+			$styles,
+			self::variants_for(
+				$type,
+				isset( $spec['styles'] ) ? $spec['styles'] : array(),
+				$has_classes,
+				isset( $spec['hide_on'] ) ? $spec['hide_on'] : array()
+			)
+		);
 
-		$block = array(
+		$anchor = self::anchor_for( $spec );
+		$block  = array(
 			'visibility' => true,
 			'collapse'   => false,
-			'name'       => $type,
+			'name'       => 'list' === $type ? 'paragraph' : $type,
 			'title'      => self::title_for( $type, $spec ),
 			'properties' => self::properties_for( $type, $spec, $keys ),
 			'styleIds'   => array( $style_id ),
@@ -275,6 +285,13 @@ class Spec_Compiler {
 				$class_ids[] = $class_id;
 			}
 			$block['properties']['classesIds'] = $class_ids;
+		}
+
+		if ( '' !== $anchor && 'section' !== $type ) {
+			if ( ! isset( $block['properties']['customAttributes'] ) || ! is_array( $block['properties']['customAttributes'] ) ) {
+				$block['properties']['customAttributes'] = array();
+			}
+			$block['properties']['customAttributes']['id'] = $anchor;
 		}
 
 		if ( in_array( $type, array( 'section', 'div', 'link-block' ), true ) ) {
@@ -373,6 +390,27 @@ class Spec_Compiler {
 				return array(
 					'contents' => array( self::plain_text( isset( $spec['text'] ) ? $spec['text'] : '' ) ),
 					'tag'      => 'span',
+				);
+			case 'list':
+				$items = isset( $spec['items'] ) && is_array( $spec['items'] ) ? $spec['items'] : array();
+				$lines = array();
+				foreach ( $items as $item ) {
+					if ( ! is_string( $item ) && ! is_numeric( $item ) ) {
+						throw new \InvalidArgumentException( 'List items must be text.' );
+					}
+					$line = self::plain_text( (string) $item );
+					if ( '' !== $line ) {
+						$lines[] = $line;
+					}
+				}
+				if ( ! $lines ) {
+					throw new \InvalidArgumentException( 'A list needs at least one item.' );
+				}
+				return array(
+					'contents'      => array( implode( "\n", $lines ) ),
+					'tag'           => 'p',
+					'isTextList'    => true,
+					'listStyleType' => ! empty( $spec['ordered'] ) ? 'decimal' : 'disc',
 				);
 			case 'link-text':
 				$href = self::href_for( $spec, $keys );
@@ -539,30 +577,78 @@ class Spec_Compiler {
 	 *
 	 * @param string $type Element type.
 	 * @param mixed  $styles Agent styles.
+	 * @param bool   $has_classes Element uses a global class.
+	 * @param mixed  $hide_on Viewports to hide.
 	 * @return array
 	 */
-	private static function variants_for( $type, $styles ) {
+	private static function variants_for( $type, $styles, $has_classes = false, $hide_on = array() ) {
 		$defaults = self::default_variants();
-		$variants = isset( $defaults[ $type ] ) ? $defaults[ $type ] : array( 'md' => '' );
+		// Kirki prints a global class and the element's own rule at the same
+		// specificity. The local rule is what was covering the class, so a
+		// classed element starts from an empty rule and only keeps the styles
+		// the agent set on that element.
+		$variants = $has_classes ? array() : ( isset( $defaults[ $type ] ) ? $defaults[ $type ] : array( 'md' => '' ) );
 
-		if ( ! is_array( $styles ) ) {
-			return $variants;
+		if ( is_array( $styles ) ) {
+			foreach ( $styles as $key => $css ) {
+				$key = Css::variant_key( $key );
+				$css = Css::sanitize( $css );
+				if ( '' === $css ) {
+					continue;
+				}
+				if ( $has_classes ) {
+					$css = self::mark_important( $css );
+				}
+				if ( isset( $variants[ $key ] ) && '' !== $variants[ $key ] ) {
+					$variants[ $key ] = rtrim( $variants[ $key ], ';' ) . ';' . $css;
+				} else {
+					$variants[ $key ] = $css;
+				}
+			}
 		}
 
-		foreach ( $styles as $key => $css ) {
-			$key = Css::variant_key( $key );
-			$css = Css::sanitize( $css );
-			if ( '' === $css ) {
-				continue;
+		if ( is_array( $hide_on ) ) {
+			foreach ( $hide_on as $viewport ) {
+				$viewport = Css::variant_key( $viewport );
+				if ( false !== strpos( $viewport, '_' ) ) {
+					throw new \InvalidArgumentException( 'hide_on accepts viewport names such as md, tablet, and mobile.' );
+				}
+				$hidden = $has_classes ? 'display:none !important;' : 'display:none;';
+				if ( isset( $variants[ $viewport ] ) && '' !== $variants[ $viewport ] ) {
+					$variants[ $viewport ] = rtrim( $variants[ $viewport ], ';' ) . ';' . $hidden;
+				} else {
+					$variants[ $viewport ] = $hidden;
+				}
 			}
-			if ( isset( $variants[ $key ] ) && '' !== $variants[ $key ] ) {
-				$variants[ $key ] = rtrim( $variants[ $key ], ';' ) . ';' . $css;
-			} else {
-				$variants[ $key ] = $css;
-			}
+		}
+
+		if ( ! $variants ) {
+			$variants['md'] = '';
 		}
 
 		return $variants;
+	}
+
+	/**
+	 * Make declarations win over a global class no matter which rule Kirki prints last.
+	 *
+	 * @param string $css Sanitized declarations.
+	 * @return string
+	 */
+	private static function mark_important( $css ) {
+		$parts = explode( ';', $css );
+		$out   = array();
+		foreach ( $parts as $part ) {
+			$part = trim( $part );
+			if ( '' === $part ) {
+				continue;
+			}
+			if ( false === stripos( $part, '!important' ) ) {
+				$part .= ' !important';
+			}
+			$out[] = $part;
+		}
+		return implode( ';', $out ) . ';';
 	}
 
 	/**
@@ -628,6 +714,10 @@ class Spec_Compiler {
 	 * @return string
 	 */
 	private static function title_for( $type, array $spec ) {
+		$anchor = self::anchor_for( $spec );
+		if ( '' !== $anchor ) {
+			return $anchor;
+		}
 		if ( ! empty( $spec['title'] ) ) {
 			$title = self::plain_text( $spec['title'] );
 			if ( '' !== $title ) {
@@ -646,8 +736,28 @@ class Spec_Compiler {
 			'link-text'  => 'Link',
 			'navigation' => 'Navigation',
 			'form'       => 'Form',
+			'list'       => 'List',
 		);
 		return isset( $names[ $type ] ) ? $names[ $type ] : 'Element';
+	}
+
+	/**
+	 * Anchor slug. Kirki turns a section title into the HTML id.
+	 *
+	 * @param array $spec Spec.
+	 * @return string
+	 */
+	private static function anchor_for( array $spec ) {
+		$raw = '';
+		if ( ! empty( $spec['anchor'] ) ) {
+			$raw = $spec['anchor'];
+		} elseif ( ! empty( $spec['key'] ) ) {
+			$raw = $spec['key'];
+		}
+		if ( '' === $raw ) {
+			return '';
+		}
+		return self::key_name( $raw );
 	}
 
 	/**
