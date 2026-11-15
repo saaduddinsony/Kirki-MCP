@@ -7,6 +7,7 @@
 
 use KirkiMCP\Css;
 use KirkiMCP\Document;
+use KirkiMCP\Page_Repository;
 use KirkiMCP\Spec_Compiler;
 use KirkiMCP\Symbol_Repository;
 use PHPUnit\Framework\TestCase;
@@ -616,6 +617,122 @@ class FixesTest extends TestCase {
 			)
 		);
 		$this->assertArrayNotHasKey( 'email-field', $document->keys );
+	}
+
+	/**
+	 * A media value cannot smuggle another attribute.
+	 */
+	/**
+	 * An older unpublished revision is not the open stage after a newer publish.
+	 */
+	public function test_stale_stage_is_not_reopened() {
+		$this->assertNull( Page_Repository::usable_unpublished_stage( 1, 2 ) );
+		$this->assertNull( Page_Repository::usable_unpublished_stage( 2, 2 ) );
+		$this->assertSame( 3, Page_Repository::usable_unpublished_stage( 3, 2 ) );
+		$this->assertNull( Page_Repository::usable_unpublished_stage( null, 2 ) );
+	}
+
+	/**
+	 * Navigation stays visible: hamburger mode is off, so Kirki does not hide the menu.
+	 */
+	public function test_navigation_is_not_a_closed_hamburger() {
+		$document = Document::from_sections(
+			array(
+				array(
+					'elements' => array(
+						array(
+							'type'  => 'navigation',
+							'items' => array(
+								array(
+									'text' => 'Work',
+									'href' => '/work',
+								),
+							),
+						),
+					),
+				),
+			)
+		);
+		$nav = null;
+		foreach ( $document->blocks as $block ) {
+			if ( 'navigation' === $block['name'] ) {
+				$nav = $block;
+			}
+		}
+		$this->assertFalse( $nav['properties']['navigation']['hamburger'] );
+	}
+
+	/**
+	 * A symbol keeps a copy of each global class it uses.
+	 */
+	public function test_symbol_style_blocks_include_global_classes() {
+		$styles = Symbol_Repository::include_global_classes(
+			array(
+				'el' => array(
+					'properties' => array(
+						'classesIds' => array( 'class-1' ),
+					),
+				),
+			),
+			array(),
+			array(
+				'class-1' => array(
+					'id'   => 'class-1',
+					'name' => 't-display',
+					'type' => 'class',
+				),
+			)
+		);
+		$this->assertSame( 't-display', $styles['class-1']['name'] );
+	}
+
+	/**
+	 * Forms show a success message and can include a select with a labelled control.
+	 */
+	public function test_form_success_message_and_select() {
+		$document = Document::from_sections(
+			array(
+				array(
+					'elements' => array(
+						array(
+							'type'            => 'form',
+							'email'           => 'hello@example.com',
+							'success_message' => 'Thanks. We have the message.',
+							'fields'          => array(
+								array(
+									'name'     => 'need',
+									'label'    => 'Need',
+									'type'     => 'select',
+									'required' => true,
+									'options'  => array( 'Site', 'Brand' ),
+								),
+							),
+						),
+					),
+				),
+			)
+		);
+		$saw_message = false;
+		$saw_select  = false;
+		$saw_for     = false;
+		foreach ( $document->blocks as $block ) {
+			if ( isset( $block['properties']['attributes']['kirki-form'] ) && 'success-message' === $block['properties']['attributes']['kirki-form'] ) {
+				$saw_message = true;
+			}
+			if ( 'select' === $block['name'] ) {
+				$saw_select = true;
+				$this->assertSame( 'field-need', $block['properties']['attributes']['id'] );
+			}
+			if ( isset( $block['properties']['attributes']['for'] ) && 'field-need' === $block['properties']['attributes']['for'] ) {
+				$saw_for = true;
+			}
+		}
+		$this->assertTrue( $saw_message );
+		$this->assertTrue( $saw_select );
+		$this->assertTrue( $saw_for );
+		$schema = Spec_Compiler::schema();
+		$this->assertStringContainsString( 'navigation', $schema['element']['type'] );
+		$this->assertArrayHasKey( 'success_message', $schema['element'] );
 	}
 
 	/**

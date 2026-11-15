@@ -373,12 +373,16 @@ class Abilities {
 			),
 			'reapply-global-classes' => self::tool(
 				'Reapply global classes',
-				'Remove Kirki\'s default local CSS from elements that already have a global class, so the class can style them. Use this after attaching a class, and on pages built before that fix. clear_local also removes CSS that was copied onto the element by hand. The change is staged on a published page.',
+				'Remove Kirki\'s default local CSS from elements that already have a global class. Pass page_id, or symbol_id for a header or footer. A page_id that is actually a symbol is accepted too. clear_local also removes CSS copied onto the element by hand. Page edits are staged. Symbol edits are saved on the symbol.',
 				false,
 				array(
 					'type'       => 'object',
 					'properties' => array(
 						'page_id'     => $page,
+						'symbol_id'   => array(
+							'type'        => 'integer',
+							'description' => 'Symbol id, instead of page_id, for a header, footer, or component.',
+						),
 						'clear_local' => array(
 							'type'        => 'boolean',
 							'description' => 'Drop the entire local rule on classed elements.',
@@ -976,8 +980,16 @@ class Abilities {
 	public static function reapply_global_classes( $input ) {
 		return self::guard(
 			function () use ( $input ) {
+				$target = isset( $input['symbol_id'] ) ? (int) $input['symbol_id'] : (int) $input['page_id'];
+				$post   = get_post( $target );
+				if ( $post && 'kirki_symbol' === $post->post_type ) {
+					return array(
+						'symbol_id' => $target,
+						'elements'  => Symbol_Repository::reapply_classes( $target, ! empty( $input['clear_local'] ) ),
+					);
+				}
 				return self::mutate(
-					(int) $input['page_id'],
+					$target,
 					function ( Document $document ) use ( $input ) {
 						$count = $document->release_class_defaults( ! empty( $input['clear_local'] ) );
 						return array( 'elements' => $count );
@@ -1344,78 +1356,86 @@ class Abilities {
 			'description'          => 'An element. type is section, div, heading, paragraph, text, link-text, button, image, link-block, navigation, form, or list.',
 			'additionalProperties' => false,
 			'properties'           => array(
-				'type'          => array(
+				'type'            => array(
 					'type' => 'string',
 				),
-				'key'           => array(
+				'key'             => array(
 					'type'        => 'string',
 					'description' => 'Stable name. A section key becomes its HTML id, so a key of damex-digital is the target of /work/#damex-digital.',
 				),
-				'anchor'        => array(
+				'anchor'          => array(
 					'type'        => 'string',
 					'description' => 'HTML id. Overrides key for the id only.',
 				),
-				'hide_on'       => array(
+				'hide_on'         => array(
 					'type'        => 'array',
 					'description' => 'Viewports to hide: md, tablet, or mobile.',
 					'items'       => array( 'type' => 'string' ),
 				),
-				'ordered'       => array(
+				'ordered'         => array(
 					'type'        => 'boolean',
 					'description' => 'True renders a numbered list.',
 				),
-				'submit'        => array(
+				'submit'          => array(
 					'type'        => 'boolean',
 					'description' => 'True makes a button submit the form that contains it.',
 				),
-				'submit_label'  => array(
+				'success_message' => array(
+					'type'        => 'string',
+					'description' => 'Shown after the form submits.',
+				),
+				'error_message'   => array(
+					'type'        => 'string',
+					'description' => 'Shown when the form submit fails.',
+				),
+				'submit_label'    => array(
 					'type'        => 'string',
 					'description' => 'Label of the submit button a form adds automatically. Default Send.',
 				),
-				'text'          => array(
+				'text'            => array(
 					'type' => 'string',
 				),
-				'tag'           => array(
+				'tag'             => array(
 					'type' => 'string',
 				),
-				'href'          => array(
+				'href'            => array(
 					'type' => 'string',
 				),
-				'link_key'      => array(
+				'link_key'        => array(
 					'type' => 'string',
 				),
-				'target'        => array(
+				'target'          => array(
 					'type' => 'string',
 				),
-				'src'           => array(
+				'src'             => array(
 					'type' => 'string',
 				),
-				'alt'           => array(
+				'alt'             => array(
 					'type' => 'string',
 				),
-				'styles'        => self::style_schema(),
-				'classes'       => array(
+				'styles'          => self::style_schema(),
+				'classes'         => array(
 					'type'  => 'array',
 					'items' => array( 'type' => 'string' ),
 				),
-				'inline'        => array(
+				'inline'          => array(
 					'type'        => 'array',
 					'description' => 'Mixed strings and links for heading, paragraph, or text. A link is an object with text and href.',
 				),
-				'items'         => array(
+				'items'           => array(
 					'type'        => 'array',
 					'description' => 'Navigation items with text and href or link_key.',
 				),
-				'email'         => array( 'type' => 'string' ),
-				'subject'       => array( 'type' => 'string' ),
-				'name'          => array( 'type' => 'string' ),
-				'title'         => array( 'type' => 'string' ),
-				'fields'        => array(
+				'email'           => array( 'type' => 'string' ),
+				'subject'         => array( 'type' => 'string' ),
+				'name'            => array( 'type' => 'string' ),
+				'title'           => array( 'type' => 'string' ),
+				'fields'          => array(
 					'type'        => 'array',
 					'description' => 'Form fields with name, label, type, and required.',
 				),
-				'attachment_id' => array( 'type' => 'integer' ),
-				'elements'      => array(
+				'attachment_id'   => array( 'type' => 'integer' ),
+				'elements'        => array(
 					'type'  => 'array',
 					'items' => array(
 						'type'                 => 'object',

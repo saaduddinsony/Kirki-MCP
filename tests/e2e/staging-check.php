@@ -80,6 +80,29 @@ $published = get_post_meta( $page_id, 'kirki', true );
 if ( false === strpos( wp_json_encode( $published ), 'Staged heading' ) ) {
 	throw new RuntimeException( 'publish-page did not copy the staged heading onto the live page.' );
 }
+$after = kirki_mcp_run( 'get-page', array( 'page_id' => $page_id ) );
+if ( null !== $after['stage'] || 'published_meta' !== $after['writing_to'] ) {
+	throw new RuntimeException( 'publish-page left an older revision open as the working stage.' );
+}
+
+kirki_mcp_run(
+	'update-element',
+	array(
+		'page_id'    => $page_id,
+		'element_id' => $heading,
+		'text'       => 'Second edit',
+	)
+);
+kirki_mcp_run( 'publish-page', array( 'page_id' => $page_id ) );
+$second = get_post_meta( $page_id, 'kirki', true );
+if ( false === strpos( wp_json_encode( $second ), 'Second edit' ) ) {
+	throw new RuntimeException( 'The second publish did not keep the new edit.' );
+}
+kirki_mcp_run( 'publish-page', array( 'page_id' => $page_id ) );
+$third = get_post_meta( $page_id, 'kirki', true );
+if ( false === strpos( wp_json_encode( $third ), 'Second edit' ) || false !== strpos( wp_json_encode( $third ), 'Published heading' ) ) {
+	throw new RuntimeException( 'Publishing again reverted the page to an older stage.' );
+}
 
 $header = kirki_mcp_run(
 	'create-symbol',

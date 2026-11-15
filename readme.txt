@@ -4,7 +4,7 @@ Tags: kirki, mcp, ai, page-builder, abilities
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.2.3
+Stable tag: 0.2.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -52,6 +52,12 @@ Kirki 6.4.x only. It was tested with 6.4.2. Kirki 6.5 and 7 are not supported. F
 Yes, with `kirki-mcp/publish-page`, and only when the user can publish pages.
 
 == Changelog ==
+
+= 0.2.4 =
+* After publish, an older Kirki revision is no longer treated as the open stage.
+* Navigation stays visible at every width instead of starting in Kirki's hidden hamburger state.
+* Symbols store the global classes they use. reapply-global-classes accepts a symbol id.
+* Forms can show a success and error message, and fields can be select, checkbox, radio, or url.
 
 = 0.2.3 =
 * Stored font localUrl values are escaped as well as fontUrl, and &#038; is decoded back to &.

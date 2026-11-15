@@ -378,6 +378,64 @@ class Symbol_Repository {
 	}
 
 	/**
+	 * Copy referenced global classes into the symbol so Kirki can render them.
+	 *
+	 * Symbol rendering only sees style blocks stored on the symbol.
+	 *
+	 * @param array      $blocks Symbol elements.
+	 * @param array      $styles Local style blocks.
+	 * @param array|null $class_styles Global class style blocks. Loaded from Kirki when omitted.
+	 * @return array
+	 */
+	public static function include_global_classes( array $blocks, array $styles, $class_styles = null ) {
+		if ( null === $class_styles ) {
+			if ( ! class_exists( '\Kirki\App\Supports\Facades\GlobalData' ) ) {
+				return $styles;
+			}
+			$class_styles = \Kirki\App\Supports\Facades\GlobalData::get_style_blocks();
+		}
+		if ( ! is_array( $class_styles ) ) {
+			return $styles;
+		}
+		foreach ( $blocks as $block ) {
+			if ( empty( $block['properties']['classesIds'] ) || ! is_array( $block['properties']['classesIds'] ) ) {
+				continue;
+			}
+			foreach ( $block['properties']['classesIds'] as $class_id ) {
+				$class_id = (string) $class_id;
+				if ( isset( $class_styles[ $class_id ] ) && is_array( $class_styles[ $class_id ] ) ) {
+					$styles[ $class_id ] = $class_styles[ $class_id ];
+				}
+			}
+		}
+		return $styles;
+	}
+
+	/**
+	 * Strip default local CSS on a symbol and make sure its classes are stored with it.
+	 *
+	 * @param int  $symbol_id Symbol id.
+	 * @param bool $clear_local Drop every local declaration on classed elements.
+	 * @return int
+	 */
+	public static function reapply_classes( $symbol_id, $clear_local = false ) {
+		Page_Repository::assert_ready();
+		$post                = self::symbol( $symbol_id );
+		$data                = self::read_meta( $post->ID );
+		$root                = isset( $data['root'] ) ? (string) $data['root'] : 'root';
+		$document            = Document::from_symbol(
+			isset( $data['data'] ) ? $data['data'] : array(),
+			isset( $data['styleBlocks'] ) ? $data['styleBlocks'] : array(),
+			$root
+		);
+		$count               = $document->release_class_defaults( $clear_local );
+		$data['data']        = $document->blocks;
+		$data['styleBlocks'] = self::include_global_classes( $document->blocks, $document->styles );
+		update_post_meta( $post->ID, 'kirki', $data );
+		return $count;
+	}
+
+	/**
 	 * Symbol meta value.
 	 *
 	 * @param int    $post_id Post id.
@@ -390,7 +448,7 @@ class Symbol_Repository {
 		Page_Repository::resolve_classes( $sections );
 		$compiled = Spec_Compiler::compile_sections( $sections );
 		$blocks   = $compiled['blocks'];
-		$styles   = $compiled['styles'];
+		$styles   = self::include_global_classes( $blocks, $compiled['styles'] );
 
 		foreach ( $compiled['body_children'] as $child_id ) {
 			if ( isset( $blocks[ $child_id ] ) ) {

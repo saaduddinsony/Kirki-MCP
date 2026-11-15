@@ -716,8 +716,31 @@ class Page_Repository {
 		if ( ! class_exists( '\Kirki\App\Supports\Facades\Page' ) ) {
 			return null;
 		}
-		$version = \Kirki\App\Supports\Facades\Page::get_most_recent_unpublished_stage_version( (int) $page_id );
-		return $version ? (int) $version : null;
+		$version   = \Kirki\App\Supports\Facades\Page::get_most_recent_unpublished_stage_version( (int) $page_id );
+		$published = \Kirki\App\Supports\Facades\Page::get_published_stage_version( (int) $page_id );
+		return self::usable_unpublished_stage( $version, $published ? (int) $published : null );
+	}
+
+	/**
+	 * An unpublished stage is open only when it is newer than the published one.
+	 *
+	 * Kirki keeps older unpublished revisions. Treating those as the open stage
+	 * makes the next edit build on stale content, and the next publish puts
+	 * that old content back on the live page.
+	 *
+	 * @param int|null $unpublished Latest version without the publish flag.
+	 * @param int|null $published Published version.
+	 * @return int|null
+	 */
+	public static function usable_unpublished_stage( $unpublished, $published ) {
+		if ( ! $unpublished ) {
+			return null;
+		}
+		$unpublished = (int) $unpublished;
+		if ( $published && $unpublished <= (int) $published ) {
+			return null;
+		}
+		return $unpublished;
 	}
 
 	/**

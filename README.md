@@ -162,7 +162,7 @@ php phpunit.phar --configuration phpunit.xml.dist
 bash bin/build-zip.sh
 ```
 
-The zip is written to `dist/kirki-mcp-0.2.3.zip`.
+The zip is written to `dist/kirki-mcp-0.2.4.zip`.
 
 ## Known gaps
 

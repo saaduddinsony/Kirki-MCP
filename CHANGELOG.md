@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.4
+
+- Publishing a page no longer leaves an older unpublished Kirki revision as the open stage. The next edit starts from the content that was just published, and publishing again does not restore the older revision.
+- Navigation is not put into Kirki's closed hamburger state, so the menu stays visible at every width.
+- A symbol stores a copy of each global class its elements use, which is what Kirki reads when it renders a header or footer.
+- `reapply-global-classes` accepts a symbol id, or a page id that is actually a symbol.
+- Forms include a configurable success message and error message. Fields can be select, checkbox, radio, or url, and labels point at their inputs.
+
 ## 0.2.3
 
 - Font stylesheet output escapes `localUrl` as well as `fontUrl`. `&#038;` in a stored URL is decoded back to `&` before escaping, so a later read does not keep the HTML entity.

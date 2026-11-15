@@ -50,32 +50,42 @@ class Spec_Compiler {
 				'md_active' => 'Desktop active.',
 			),
 			'notes'               => array(
-				'styles are ordinary CSS declaration lists, such as "color:#fff;padding:24px;". They are appended to Kirki\'s default rules for that element, so later declarations win.',
-				'Give a section or element a key such as "hero" and point a button at it with link_key. The button becomes an in-page link to that section.',
-				'classes is a list of global class names created with upsert-global-class. They are stored on properties.classesIds, which is how Kirki attaches global classes.',
-				'Button labels are stored both on the button and on a child text element, because the editor shows the child and the front end renders it.',
-				'Do not send raw Kirki JSON. Use this spec. The plugin writes the element map Kirki expects.',
+				'styles are ordinary CSS declaration lists, such as "color:#fff;padding:24px;". On an element that also has classes, only these declarations are stored, and they override the class.',
+				'A section key or anchor becomes the HTML id. link_key points a button or link at that section.',
+				'classes is a list of global class names from upsert-global-class.',
+				'navigation items are {text, href or link_key}. The menu stays visible at every width.',
+				'form fields are {name, label, type, required, options}. Types: text, email, tel, url, textarea, select, checkbox, radio. success_message and error_message are shown after submit.',
+				'hide_on is md, tablet, or mobile. inline mixes strings and {text, href} links inside a paragraph.',
+				'Do not send raw Kirki JSON. Use this spec.',
 			),
 			'section'             => array(
-				'key'      => 'Optional stable name you can pass to link_key.',
+				'key'      => 'Optional stable name. Becomes the HTML id and a link_key target.',
+				'anchor'   => 'HTML id. Overrides key. Repeated titles are allowed; explicit anchors must be unique.',
 				'tag'      => 'section, div, main, header, footer, or aside. Default section.',
 				'styles'   => 'Map of variant key to CSS declarations.',
 				'classes'  => 'Global class names.',
-				'elements' => 'Child elements: heading, paragraph, text, button, image, div, link-block, or a nested section.',
+				'elements' => 'Child elements, including navigation, form, list, and link-text.',
 			),
 			'element'             => array(
-				'type'          => 'One of the element types.',
-				'text'          => 'Plain text for heading, paragraph, text, and button.',
-				'tag'           => 'Heading level or an allowed tag for the type.',
-				'href'          => 'http(s) URL or site-relative path for button and link-block.',
-				'link_key'      => 'Key of a section on this page.',
-				'target'        => '_self or _blank.',
-				'src'           => 'Image URL.',
-				'alt'           => 'Image alt text.',
-				'attachment_id' => 'WordPress attachment id for an image, when you have one.',
-				'styles'        => 'Variant CSS map.',
-				'classes'       => 'Global class names.',
-				'elements'      => 'Children of div, section, and link-block.',
+				'type'            => 'section, div, heading, paragraph, text, link-text, button, image, link-block, navigation, form, or list.',
+				'text'            => 'Plain text for heading, paragraph, text, and button.',
+				'tag'             => 'Heading level or an allowed tag for the type.',
+				'href'            => 'http(s) URL, mailto, tel, or site-relative path.',
+				'link_key'        => 'Key of a section on this page.',
+				'target'          => '_self or _blank.',
+				'src'             => 'Image URL.',
+				'alt'             => 'Image alt text.',
+				'attachment_id'   => 'WordPress attachment id for an image.',
+				'styles'          => 'Variant CSS map.',
+				'classes'         => 'Global class names.',
+				'elements'        => 'Children of div, section, link-block, and form.',
+				'items'           => 'Navigation items or list items.',
+				'inline'          => 'Mixed text and links for heading, paragraph, or text.',
+				'fields'          => 'Form fields.',
+				'success_message' => 'Text shown after a form submits.',
+				'error_message'   => 'Text shown when a form submit fails.',
+				'hide_on'         => 'Viewports to hide: md, tablet, mobile.',
+				'anchor'          => 'Explicit HTML id.',
 			),
 		);
 	}
@@ -450,6 +460,8 @@ class Spec_Compiler {
 
 		if ( 'form' === $type ) {
 			$child_ids                 = self::form_fields( isset( $spec['fields'] ) ? $spec['fields'] : array(), $id, $blocks, $styles, $keys, $count );
+			$child_ids[]               = self::form_notice( $id, 'success-message', isset( $spec['success_message'] ) ? $spec['success_message'] : 'Thanks. We have the message and will write back.', $blocks, $styles );
+			$child_ids[]               = self::form_notice( $id, 'error-message', isset( $spec['error_message'] ) ? $spec['error_message'] : 'Something went wrong. Please try again.', $blocks, $styles );
 			$child_ids[]               = self::compile_element(
 				array(
 					'type'   => 'button',
@@ -572,11 +584,9 @@ class Spec_Compiler {
 				return array(
 					'tag'        => 'nav',
 					'navigation' => array(
-						'version'                  => 'v2',
-						'hamburger'                => true,
-						'navButtonViewPort'        => 'tablet',
-						'showNavigationChildrenOn' => 'click',
-						'editorProps'              => array(
+						'version'     => 'v2',
+						'hamburger'   => false,
+						'editorProps' => array(
 							'activeNavigationItemId' => '',
 							'showOverlay'            => false,
 						),
@@ -604,7 +614,9 @@ class Spec_Compiler {
 						),
 						'onSubmit'      => array(
 							'type'  => 'show-notification',
-							'value' => array( 'state' => 'none' ),
+							'value' => array(
+								'state' => 'success',
+							),
 						),
 						'maxEntry'      => array(
 							'restricted' => false,
@@ -1086,36 +1098,61 @@ class Spec_Compiler {
 			}
 			$label = self::plain_text( isset( $field['label'] ) ? $field['label'] : $name );
 			$type  = isset( $field['type'] ) ? (string) $field['type'] : 'text';
-			if ( ! in_array( $type, array( 'text', 'email', 'tel', 'textarea' ), true ) ) {
-				throw new \InvalidArgumentException( 'Form fields must be text, email, tel, or textarea.' );
+			if ( ! in_array( $type, array( 'text', 'email', 'tel', 'url', 'textarea', 'select', 'checkbox', 'radio' ), true ) ) {
+				throw new \InvalidArgumentException( 'Form fields must be text, email, tel, url, textarea, select, checkbox, or radio.' );
 			}
 			++$count;
 			$wrap_id             = Ids::make( $blocks );
 			$label_id            = Ids::make( $blocks );
 			$field_id            = Ids::make( $blocks );
-			$blocks[ $label_id ] = self::shell(
-				'label',
-				$label,
-				$wrap_id,
-				$label_id,
-				array(),
-				array(
-					'contents' => array( $label ),
-					'tag'      => 'label',
-				),
-				$styles,
-				'font-size:14px;font-weight:600;'
+			$input_id            = 'field-' . $name;
+			$label_props         = array(
+				'contents'   => array( $label ),
+				'tag'        => 'label',
+				'attributes' => array( 'for' => $input_id ),
 			);
+			$blocks[ $label_id ] = self::shell( 'label', $label, $wrap_id, $label_id, array(), $label_props, $styles, 'font-size:14px;font-weight:600;' );
 			unset( $blocks[ $label_id ]['children'] );
-			$attributes = array(
+			$attributes   = array(
 				'name'     => $name,
+				'id'       => $input_id,
 				'required' => ! empty( $field['required'] ),
 			);
+			$element_name = 'input';
 			if ( 'textarea' === $type ) {
-				$field_props = array(
+				$field_props  = array(
 					'tag'        => 'textarea',
 					'attributes' => $attributes,
 				);
+				$element_name = 'textarea';
+			} elseif ( 'select' === $type ) {
+				$field_props  = array(
+					'tag'        => 'select',
+					'attributes' => $attributes,
+					'options'    => array(
+						'list'           => self::choice_list( isset( $field['options'] ) ? $field['options'] : array(), 'contents' ),
+						'selectedOption' => '',
+					),
+				);
+				$element_name = 'select';
+			} elseif ( 'radio' === $type ) {
+				unset( $attributes['id'] );
+				$field_props  = array(
+					'tag'        => 'div',
+					'attributes' => array( 'name' => $name ),
+					'data'       => array(
+						'child' => self::choice_list( isset( $field['options'] ) ? $field['options'] : array(), 'content', true ),
+					),
+				);
+				$element_name = 'radio-group';
+			} elseif ( 'checkbox' === $type ) {
+				$attributes['type']  = 'checkbox';
+				$attributes['value'] = '1';
+				$field_props         = array(
+					'tag'        => 'input',
+					'attributes' => $attributes,
+				);
+				$element_name        = 'checkbox-element';
 			} else {
 				$attributes['type'] = $type;
 				$field_props        = array(
@@ -1124,12 +1161,94 @@ class Spec_Compiler {
 					'attributes' => $attributes,
 				);
 			}
-			$blocks[ $field_id ] = self::shell( 'textarea' === $type ? 'textarea' : 'input', $label, $wrap_id, $field_id, array(), $field_props, $styles, 'width:100%;' );
+			$blocks[ $field_id ] = self::shell( $element_name, $label, $wrap_id, $field_id, array(), $field_props, $styles, 'width:100%;' );
 			unset( $blocks[ $field_id ]['children'] );
 			$blocks[ $wrap_id ] = self::shell( 'div', $label, $parent_id, $wrap_id, array( $label_id, $field_id ), array( 'tag' => 'div' ), $styles, 'display:flex;flex-direction:column;gap:8px;width:100%;' );
 			$ids[]              = $wrap_id;
 		}
 		return $ids;
+	}
+
+	/**
+	 * A hidden form message Kirki shows after submit.
+	 *
+	 * @param string $parent_id Form id.
+	 * @param string $role success-message or error-message.
+	 * @param string $text Message.
+	 * @param array  $blocks Blocks.
+	 * @param array  $styles Styles.
+	 * @return string
+	 */
+	private static function form_notice( $parent_id, $role, $text, array &$blocks, array &$styles ) {
+		$text               = self::plain_text( $text );
+		$notice_id          = Ids::make( $blocks );
+		$copy_id            = Ids::make( $blocks );
+		$blocks[ $copy_id ] = self::shell(
+			'paragraph',
+			'Message',
+			$notice_id,
+			$copy_id,
+			array(),
+			array(
+				'contents' => array( $text ),
+				'tag'      => 'p',
+			),
+			$styles,
+			'margin:0;'
+		);
+		unset( $blocks[ $copy_id ]['children'] );
+		$blocks[ $notice_id ] = self::shell(
+			'div',
+			'success-message' === $role ? 'Success message' : 'Error message',
+			$parent_id,
+			$notice_id,
+			array( $copy_id ),
+			array(
+				'tag'        => 'div',
+				'attributes' => array( 'kirki-form' => $role ),
+			),
+			$styles,
+			'display:none;'
+		);
+		return $notice_id;
+	}
+
+	/**
+	 * Options for a select or radio field.
+	 *
+	 * @param mixed  $options Spec options.
+	 * @param string $text_key contents or content.
+	 * @param bool   $checked Include a checked flag.
+	 * @return array
+	 */
+	private static function choice_list( $options, $text_key, $checked = false ) {
+		if ( ! is_array( $options ) || ! $options ) {
+			throw new \InvalidArgumentException( 'Select and radio fields need an options list.' );
+		}
+		$list = array();
+		foreach ( $options as $option ) {
+			if ( is_string( $option ) ) {
+				$value = self::plain_text( $option );
+				$label = $value;
+			} elseif ( is_array( $option ) ) {
+				$value = self::plain_text( isset( $option['value'] ) ? $option['value'] : '' );
+				$label = self::plain_text( isset( $option['label'] ) ? $option['label'] : $value );
+			} else {
+				throw new \InvalidArgumentException( 'Each option must be text or an object with value and label.' );
+			}
+			if ( '' === $value ) {
+				throw new \InvalidArgumentException( 'An option needs a value.' );
+			}
+			$item = array(
+				'value'   => $value,
+				$text_key => $label,
+			);
+			if ( $checked ) {
+				$item['checked'] = false;
+			}
+			$list[] = $item;
+		}
+		return $list;
 	}
 
 	/**
