@@ -155,6 +155,34 @@ class Spec_Compiler {
 	}
 
 	/**
+	 * A label Kirki may print unescaped as an HTML id.
+	 *
+	 * Section titles and symbol names become id="…" with no escaping.
+	 * Only letters, numbers, spaces, dots, underscores, and hyphens are kept.
+	 *
+	 * @param mixed $text Raw label.
+	 * @return string
+	 */
+	public static function safe_label( $text ) {
+		$text = self::plain_text( $text );
+		$text = preg_replace( '/[^A-Za-z0-9 _.-]/', '', $text );
+		return trim( preg_replace( '/\s+/', ' ', $text ) );
+	}
+
+	/**
+	 * The HTML id Kirki derives: lower case, spaces become hyphens.
+	 *
+	 * @param mixed $text Raw anchor or title.
+	 * @return string
+	 */
+	public static function anchor_slug( $text ) {
+		$text = strtolower( self::safe_label( $text ) );
+		$text = preg_replace( '/\s+/', '-', $text );
+		$text = preg_replace( '/-+/', '-', $text );
+		return trim( $text, '-' );
+	}
+
+	/**
 	 * Allowed tag for an element type.
 	 *
 	 * @param string $type Element name.
@@ -216,8 +244,10 @@ class Spec_Compiler {
 				$keys[ $key ] = $id;
 				$used[ $id ]  = true;
 			}
-			if ( ! empty( $spec['elements'] ) && is_array( $spec['elements'] ) ) {
-				self::reserve_keys_into( $spec['elements'], $keys, $used );
+			foreach ( array( 'elements', 'inline', 'items', 'fields' ) as $child_key ) {
+				if ( ! empty( $spec[ $child_key ] ) && is_array( $spec[ $child_key ] ) ) {
+					self::reserve_keys_into( $spec[ $child_key ], $keys, $used );
+				}
 			}
 		}
 	}
@@ -287,11 +317,14 @@ class Spec_Compiler {
 			$block['properties']['classesIds'] = $class_ids;
 		}
 
-		if ( '' !== $anchor && 'section' !== $type ) {
-			if ( ! isset( $block['properties']['customAttributes'] ) || ! is_array( $block['properties']['customAttributes'] ) ) {
-				$block['properties']['customAttributes'] = array();
+		if ( '' !== $anchor ) {
+			$block['properties']['explicitAnchor'] = $anchor;
+			if ( 'section' !== $type ) {
+				if ( ! isset( $block['properties']['customAttributes'] ) || ! is_array( $block['properties']['customAttributes'] ) ) {
+					$block['properties']['customAttributes'] = array();
+				}
+				$block['properties']['customAttributes']['id'] = $anchor;
 			}
-			$block['properties']['customAttributes']['id'] = $anchor;
 		}
 
 		if ( in_array( $type, array( 'section', 'div', 'link-block' ), true ) ) {
@@ -798,7 +831,7 @@ class Spec_Compiler {
 			return $anchor;
 		}
 		if ( ! empty( $spec['title'] ) ) {
-			$title = self::plain_text( $spec['title'] );
+			$title = ( 'section' === $type ) ? self::safe_label( $spec['title'] ) : self::plain_text( $spec['title'] );
 			if ( '' !== $title ) {
 				return $title;
 			}
@@ -827,16 +860,17 @@ class Spec_Compiler {
 	 * @return string
 	 */
 	private static function anchor_for( array $spec ) {
-		$raw = '';
 		if ( ! empty( $spec['anchor'] ) ) {
-			$raw = $spec['anchor'];
+			$slug = self::anchor_slug( $spec['anchor'] );
 		} elseif ( ! empty( $spec['key'] ) ) {
-			$raw = $spec['key'];
-		}
-		if ( '' === $raw ) {
+			$slug = self::key_name( $spec['key'] );
+		} else {
 			return '';
 		}
-		return self::key_name( $raw );
+		if ( '' === $slug ) {
+			throw new \InvalidArgumentException( 'The anchor is empty after removing characters that cannot be used in an HTML id.' );
+		}
+		return $slug;
 	}
 
 	/**

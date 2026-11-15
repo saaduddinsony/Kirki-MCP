@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.2
+
+- Section titles and symbol names keep only letters, numbers, spaces, dots, underscores, and hyphens. Kirki prints those titles as HTML ids without escaping.
+- Repeated section titles are allowed, because Kirki numbers the ids. Explicit anchors are rejected when they match after slugging, so "Our Work" and our-work are the same id.
+- Keys on inline links and navigation items are reserved before those elements are compiled.
+- Head code returns an error when markup follows a style block. A CSS `>` combinator and `<style media>` are allowed. `</style` and `@import` are not.
+- Font stylesheet URLs already stored in Kirki's custom fonts are passed through `esc_url` before Kirki prints them.
+
 ## 0.2.1
 
 - Custom code requires `unfiltered_html` plus Kirki builder access. Head code is limited to sanitized `<style>` blocks. Body code goes through `wp_kses_post`.

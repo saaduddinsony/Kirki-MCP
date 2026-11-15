@@ -265,9 +265,17 @@ class Document {
 		}
 
 		if ( ! empty( $changes['title'] ) ) {
-			$block['title'] = Spec_Compiler::plain_text( $changes['title'] );
 			if ( 'section' === $type ) {
+				$block['title'] = Spec_Compiler::safe_label( $changes['title'] );
+				if ( '' === $block['title'] ) {
+					throw new \InvalidArgumentException( 'The title is empty after removing characters that cannot be used in an HTML id.' );
+				}
+				if ( ! empty( $block['properties']['explicitAnchor'] ) ) {
+					$block['properties']['explicitAnchor'] = Spec_Compiler::anchor_slug( $block['title'] );
+				}
 				$this->assert_unique_anchors();
+			} else {
+				$block['title'] = Spec_Compiler::plain_text( $changes['title'] );
 			}
 		}
 	}
@@ -411,34 +419,45 @@ class Document {
 	 * @return void
 	 */
 	public function assert_unique_anchors() {
-		$seen = array();
+		$explicit    = array();
+		$title_slugs = array();
 		foreach ( $this->blocks as $id => $block ) {
-			$anchor = $this->anchor_of( $block );
-			if ( '' === $anchor ) {
+			$slug = $this->explicit_anchor( $block );
+			if ( '' !== $slug ) {
+				if ( isset( $explicit[ $slug ] ) ) {
+					throw new \InvalidArgumentException( 'The anchor "' . $slug . '" is already used. Each explicit HTML id must be unique.' );
+				}
+				$explicit[ $slug ] = $id;
 				continue;
 			}
-			if ( isset( $seen[ $anchor ] ) ) {
-				throw new \InvalidArgumentException( 'The anchor "' . $anchor . '" is already used. Each HTML id must be unique.' );
+			if ( isset( $block['name'] ) && 'section' === $block['name'] && ! empty( $block['title'] ) ) {
+				$title = Spec_Compiler::anchor_slug( $block['title'] );
+				if ( '' !== $title && 'section' !== $title ) {
+					$title_slugs[ $title ][] = $id;
+				}
 			}
-			$seen[ $anchor ] = $id;
+		}
+		foreach ( $explicit as $slug => $id ) {
+			if ( ! empty( $title_slugs[ $slug ] ) ) {
+				throw new \InvalidArgumentException( 'The anchor "' . $slug . '" matches a section title. Kirki would give them the same HTML id.' );
+			}
 		}
 	}
 
 	/**
-	 * HTML id Kirki will print for an element.
+	 * An anchor the author set on purpose, already normalized.
+	 *
+	 * Repeated section titles are not explicit. Kirki numbers those itself.
 	 *
 	 * @param array $block Element.
 	 * @return string
 	 */
-	private function anchor_of( array $block ) {
+	private function explicit_anchor( array $block ) {
 		if ( ! empty( $block['properties']['customAttributes']['id'] ) ) {
-			return strtolower( (string) $block['properties']['customAttributes']['id'] );
+			return Spec_Compiler::anchor_slug( $block['properties']['customAttributes']['id'] );
 		}
-		if ( isset( $block['name'] ) && 'section' === $block['name'] && ! empty( $block['title'] ) ) {
-			$title = strtolower( trim( (string) $block['title'] ) );
-			if ( '' !== $title && 'section' !== $title ) {
-				return $title;
-			}
+		if ( ! empty( $block['properties']['explicitAnchor'] ) ) {
+			return Spec_Compiler::anchor_slug( $block['properties']['explicitAnchor'] );
 		}
 		return '';
 	}

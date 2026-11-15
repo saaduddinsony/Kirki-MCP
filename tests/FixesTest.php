@@ -7,6 +7,7 @@
 
 use KirkiMCP\Css;
 use KirkiMCP\Document;
+use KirkiMCP\Spec_Compiler;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -231,6 +232,16 @@ class FixesTest extends TestCase {
 			'<style>:root{--ink:#17181a}</style>',
 			Css::head_style_blocks( '<style>:root{--ink:#17181a}</style>' )
 		);
+		$this->assertSame(
+			'<style>.a > .b{color:red}</style>',
+			Css::head_style_blocks( '<style>.a > .b{color:red}</style>' )
+		);
+		$this->assertSame(
+			'<style media="screen">body{color:red}</style>',
+			Css::head_style_blocks( '<style media="screen">body{color:red}</style>' )
+		);
+		$this->assertStringNotContainsString( '"', Css::escape_font_url( 'https://fonts.googleapis.com/css2?family=X"><script>alert(1)</script>' ) );
+		$this->assertStringNotContainsString( '<', Css::escape_font_url( 'https://fonts.googleapis.com/css2?family=X"><script>alert(1)</script>' ) );
 		$rejected = array(
 			'<iframe srcdoc="&lt;script&gt;parent.alert(document.domain)&lt;/script&gt;">',
 			'<a href="javascript&#58;alert(1)">x</a>',
@@ -240,6 +251,8 @@ class FixesTest extends TestCase {
 			'<link rel="stylesheet" href="https://evil.example/x.css">',
 			'<style>@import url(https://evil.example/x.css);</style>',
 			'<style></style><script>alert(1)</script>',
+			'<style>a{color:red}</style><p>after</p>',
+			'<style>a{color:red}</style></style>',
 		);
 		foreach ( $rejected as $html ) {
 			try {
@@ -340,6 +353,97 @@ class FixesTest extends TestCase {
 		$this->assertStringContainsString( 'font-size:16px', $document->styles[ $style ]['variant']['md'] );
 		$document->set_class_ids( $heading, array( 't-display' ) );
 		$this->assertStringNotContainsString( 'font-size:16px', $document->styles[ $style ]['variant']['md'] );
+	}
+
+	/**
+	 * Section titles and symbol names cannot break out of Kirki's unescaped id attribute.
+	 */
+	public function test_section_titles_and_symbol_names_are_safe_ids() {
+		$payload  = 'x"/tabindex="1"/autofocus/onfocus="alert(document.domain)';
+		$document = Document::from_sections(
+			array(
+				array(
+					'title' => $payload,
+				),
+			)
+		);
+		$section = $document->blocks['body']['children'][0];
+		$this->assertStringNotContainsString( '"', $document->blocks[ $section ]['title'] );
+		$this->assertStringNotContainsString( '/', $document->blocks[ $section ]['title'] );
+		$this->assertStringNotContainsString( '=', $document->blocks[ $section ]['title'] );
+		$this->assertSame( '', preg_replace( '/[A-Za-z0-9 _.-]/', '', $document->blocks[ $section ]['title'] ) );
+		$document->update_element( $section, array( 'title' => $payload ) );
+		$this->assertStringNotContainsString( '"', $document->blocks[ $section ]['title'] );
+		$this->assertSame( '', preg_replace( '/[A-Za-z0-9 _.-]/', '', Spec_Compiler::safe_label( $payload ) ) );
+	}
+
+	/**
+	 * Kirki numbers repeated section titles. Explicit anchors still collide after slugging.
+	 */
+	public function test_repeated_section_titles_are_allowed() {
+		$document = Document::from_sections(
+			array(
+				array( 'title' => 'Card' ),
+				array( 'title' => 'Card' ),
+			)
+		);
+		$first  = $document->blocks['body']['children'][0];
+		$second = $document->blocks['body']['children'][1];
+		$this->assertSame( 'Card', $document->blocks[ $first ]['title'] );
+		$this->assertSame( 'Card', $document->blocks[ $second ]['title'] );
+	}
+
+	/**
+	 * Our Work and our-work are the same explicit anchor.
+	 */
+	public function test_anchor_collision_is_normalized() {
+		$this->expectException( InvalidArgumentException::class );
+		Document::from_sections(
+			array(
+				array( 'anchor' => 'Our Work' ),
+				array( 'key' => 'our-work' ),
+			)
+		);
+	}
+
+	/**
+	 * Keys on inline links and navigation items are real element ids.
+	 */
+	public function test_inline_and_nav_keys_are_reserved() {
+		$document = Document::from_sections(
+			array(
+				array(
+					'elements' => array(
+						array(
+							'type'   => 'paragraph',
+							'inline' => array(
+								'See ',
+								array(
+									'key'  => 'privacy',
+									'text' => 'privacy',
+									'href' => '/privacy',
+								),
+							),
+						),
+						array(
+							'type'  => 'navigation',
+							'items' => array(
+								array(
+									'key'  => 'work',
+									'text' => 'Work',
+									'href' => '/work',
+								),
+							),
+						),
+					),
+				),
+			)
+		);
+		$this->assertNotEmpty( $document->keys['privacy'] );
+		$this->assertArrayHasKey( $document->keys['privacy'], $document->blocks );
+		$this->assertSame( 'link-text', $document->blocks[ $document->keys['privacy'] ]['name'] );
+		$this->assertNotEmpty( $document->keys['work'] );
+		$this->assertSame( 'link-text', $document->blocks[ $document->keys['work'] ]['name'] );
 	}
 
 	/**

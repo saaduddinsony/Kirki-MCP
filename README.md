@@ -150,6 +150,8 @@ Application passwords are a WordPress core feature. On a live site they require 
 - Every ability checks a real WordPress capability. Anonymous requests cannot call them.
 - Text is stored as plain text. Kirki escapes it when rendering.
 - CSS is rejected when it contains markup, `expression()`, `javascript:`, or `@import`.
+- Section titles and symbol names are limited to letters, numbers, spaces, dots, underscores, and hyphens. Kirki prints a section title as `id="…"` with no escaping.
+- Kirki prints a custom font's `fontUrl` into a stylesheet link without escaping. New URLs are checked before they are stored. URLs already stored, including ones saved by Kirki's own font screen, are passed through `esc_url` on the way out, via the `get_post_metadata` filter, before Kirki prints them.
 - `remove-element` and `trash-page` refuse to run unless `confirm` is `true`.
 - Edits to a published page stay on an unpublished Kirki stage until `publish-page`. Drafts are saved in post meta. `writing_to` on each page response says which of the two happened.
 
@@ -160,7 +162,7 @@ php phpunit.phar --configuration phpunit.xml.dist
 bash bin/build-zip.sh
 ```
 
-The zip is written to `dist/kirki-mcp-0.2.1.zip`.
+The zip is written to `dist/kirki-mcp-0.2.2.zip`.
 
 ## Known gaps
 

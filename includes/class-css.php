@@ -125,13 +125,17 @@ class Css {
 		if ( strlen( $html ) > 20000 ) {
 			throw new \InvalidArgumentException( 'Custom code is limited to 20,000 characters.' );
 		}
-		if ( ! preg_match( '/^(?:\s*<style(?:\s+type=(?:"text\/css"|\'text\/css\'))?\s*>.*?<\/style>\s*)+$/is', $html ) ) {
+		$pattern = '/<style((?:\s+(?:type|media)\s*=\s*(?:"[^"<>]*"|\'[^\'<>]*\'))*)\s*>(.*?)<\/style>/is';
+		if ( ! preg_match_all( $pattern, $html, $matches ) ) {
 			throw new \InvalidArgumentException( 'Head code must be one or more <style> blocks.' );
 		}
-		preg_match_all( '/<style(?:\s+type=(?:"text\/css"|\'text\/css\'))?\s*>(.*?)<\/style>/is', $html, $matches );
+		$remainder = preg_replace( $pattern, '', $html );
+		if ( '' !== trim( (string) $remainder ) ) {
+			throw new \InvalidArgumentException( 'Head code must be one or more <style> blocks. Other markup was found outside a style block.' );
+		}
 		$out = '';
-		foreach ( $matches[1] as $css ) {
-			$out .= '<style>' . self::sanitize_stylesheet( $css ) . '</style>';
+		foreach ( $matches[2] as $index => $css ) {
+			$out .= '<style' . $matches[1][ $index ] . '>' . self::sanitize_stylesheet( $css ) . '</style>';
 		}
 		return $out;
 	}
@@ -147,7 +151,7 @@ class Css {
 		if ( '' === $css ) {
 			throw new \InvalidArgumentException( 'A style block is empty.' );
 		}
-		if ( preg_match( '/[<>]|@import|@charset|@namespace|expression\s*\(|javascript\s*:|behavior\s*:|-moz-binding|\\\\/i', $css ) ) {
+		if ( preg_match( '/<|@import|@charset|@namespace|expression\s*\(|javascript\s*:|behavior\s*:|-moz-binding|\\\\/i', $css ) ) {
 			throw new \InvalidArgumentException( 'That style block was rejected.' );
 		}
 		if ( preg_match_all( '/url\(\s*([\'"]?)(.*?)\1\s*\)/i', $css, $matches ) ) {
@@ -203,6 +207,23 @@ class Css {
 			throw new \InvalidArgumentException( 'That font URL was rejected.' );
 		}
 		return $safe;
+	}
+
+	/**
+	 * Make a stored font URL safe to drop into an HTML attribute.
+	 *
+	 * Kirki prints fontUrl without escaping. This is applied on the way out
+	 * for values already saved by an older plugin version or by Kirki itself.
+	 *
+	 * @param string $url Stored URL.
+	 * @return string
+	 */
+	public static function escape_font_url( $url ) {
+		$url = (string) $url;
+		if ( function_exists( 'esc_url' ) ) {
+			return esc_url( $url );
+		}
+		return preg_replace( '/["\'<>\s\\\\]/', '', $url );
 	}
 
 	/**

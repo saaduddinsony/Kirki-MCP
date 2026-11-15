@@ -4,7 +4,7 @@ Tags: kirki, mcp, ai, page-builder, abilities
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.2.1
+Stable tag: 0.2.2
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -52,6 +52,11 @@ Kirki 6.4.x only. It was tested with 6.4.2. Kirki 6.5 and 7 are not supported. F
 Yes, with `kirki-mcp/publish-page`, and only when the user can publish pages.
 
 == Changelog ==
+
+= 0.2.2 =
+* Section titles and symbol names can no longer break out of Kirki's HTML id attribute.
+* Repeated section titles are allowed. Explicit anchors are compared after slugging, so "Our Work" and our-work collide.
+* Head code rejects markup that follows a style block, allows a CSS child combinator, and allows a media attribute on style.
 
 = 0.2.1 =
 * Global classes style elements, because classed elements no longer keep the default local CSS that was covering them.

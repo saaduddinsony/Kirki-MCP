@@ -417,9 +417,9 @@ class Symbol_Repository {
 	 * @return string
 	 */
 	private static function name( $name ) {
-		$name = sanitize_text_field( $name );
+		$name = Spec_Compiler::safe_label( $name );
 		if ( '' === $name ) {
-			throw new \InvalidArgumentException( 'A symbol name is required.' );
+			throw new \InvalidArgumentException( 'A symbol name is required, using only letters, numbers, spaces, dots, underscores, and hyphens.' );
 		}
 		return $name;
 	}
