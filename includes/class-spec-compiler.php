@@ -1105,7 +1105,7 @@ class Spec_Compiler {
 			$wrap_id             = Ids::make( $blocks );
 			$label_id            = Ids::make( $blocks );
 			$field_id            = Ids::make( $blocks );
-			$input_id            = 'field-' . $name;
+			$input_id            = 'field-' . $parent_id . '-' . $name;
 			$label_props         = array(
 				'contents'   => array( $label ),
 				'tag'        => 'label',
@@ -1136,10 +1136,13 @@ class Spec_Compiler {
 				);
 				$element_name = 'select';
 			} elseif ( 'radio' === $type ) {
-				unset( $attributes['id'] );
 				$field_props  = array(
 					'tag'        => 'div',
-					'attributes' => array( 'name' => $name ),
+					'attributes' => array(
+						'name'     => $name,
+						'id'       => $input_id,
+						'required' => ! empty( $field['required'] ),
+					),
 					'data'       => array(
 						'child' => self::choice_list( isset( $field['options'] ) ? $field['options'] : array(), 'content', true ),
 					),
@@ -1228,16 +1231,13 @@ class Spec_Compiler {
 		$list = array();
 		foreach ( $options as $option ) {
 			if ( is_string( $option ) ) {
-				$value = self::plain_text( $option );
-				$label = $value;
+				$value = self::option_value( $option );
+				$label = self::option_label( $option );
 			} elseif ( is_array( $option ) ) {
-				$value = self::plain_text( isset( $option['value'] ) ? $option['value'] : '' );
-				$label = self::plain_text( isset( $option['label'] ) ? $option['label'] : $value );
+				$value = self::option_value( isset( $option['value'] ) ? $option['value'] : '' );
+				$label = self::option_label( isset( $option['label'] ) ? $option['label'] : $value );
 			} else {
 				throw new \InvalidArgumentException( 'Each option must be text or an object with value and label.' );
-			}
-			if ( '' === $value ) {
-				throw new \InvalidArgumentException( 'An option needs a value.' );
 			}
 			$item = array(
 				'value'   => $value,
@@ -1249,6 +1249,35 @@ class Spec_Compiler {
 			$list[] = $item;
 		}
 		return $list;
+	}
+
+	/**
+	 * Option values are printed inside single-quoted attributes with no escaping.
+	 *
+	 * @param mixed $value Raw value.
+	 * @return string
+	 */
+	private static function option_value( $value ) {
+		$value = self::plain_text( $value );
+		if ( ! preg_match( '/^[A-Za-z0-9 _.,:@+\/-]{1,100}$/', $value ) ) {
+			throw new \InvalidArgumentException( 'An option value may only contain letters, numbers, spaces, and . , : @ + / -. Quotes and markup are not allowed.' );
+		}
+		return $value;
+	}
+
+	/**
+	 * Option labels are printed raw, so quotes and markup are stored as entities.
+	 *
+	 * @param mixed $label Raw label.
+	 * @return string
+	 */
+	private static function option_label( $label ) {
+		$label = self::plain_text( $label );
+		return str_replace(
+			array( '&', '<', '>', '"', "'", '`' ),
+			array( '&amp;', '&lt;', '&gt;', '&quot;', '&#039;', '&#96;' ),
+			$label
+		);
 	}
 
 	/**

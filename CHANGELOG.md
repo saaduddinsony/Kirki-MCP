@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.5
+
+- Select and radio option values must match letters, numbers, spaces, and `. , : @ + / -`. Labels have quotes and markup stored as HTML entities, because Kirki prints both unescaped.
+- Radio fields keep `required` on the group. Input ids are prefixed with the form element id, so two forms can share a field name.
+- Updating a global class refreshes the class snapshot stored on every symbol that uses it.
+
 ## 0.2.4
 
 - Publishing a page no longer leaves an older unpublished Kirki revision as the open stage. The next edit starts from the content that was just published, and publishing again does not restore the older revision.

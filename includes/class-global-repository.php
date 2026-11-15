@@ -155,6 +155,7 @@ class Global_Repository {
 		$blocks[ $id ]['name']          = $name;
 
 		\Kirki\App\Supports\Facades\GlobalData::update_style_blocks( $blocks );
+		self::refresh_symbol_class_copies( $id, $blocks[ $id ] );
 
 		return array(
 			'id'        => $id,
@@ -162,6 +163,36 @@ class Global_Repository {
 			'css_class' => '.' . $name,
 			'variant'   => $blocks[ $id ]['variant'],
 		);
+	}
+
+	/**
+	 * Replace the class snapshot stored on symbols that use this class.
+	 *
+	 * @param string $class_id Style-block id.
+	 * @param array  $block Updated class block.
+	 * @return void
+	 */
+	private static function refresh_symbol_class_copies( $class_id, array $block ) {
+		if ( ! function_exists( 'get_posts' ) ) {
+			return;
+		}
+		$posts = get_posts(
+			array(
+				'post_type'   => 'kirki_symbol',
+				'post_status' => array( 'draft', 'publish', 'private' ),
+				'numberposts' => 100,
+			)
+		);
+		foreach ( $posts as $post ) {
+			$data = get_post_meta( $post->ID, 'kirki', true );
+			if ( ! is_array( $data ) ) {
+				continue;
+			}
+			$next = Symbol_Repository::refresh_class_copy( $data, $class_id, $block );
+			if ( $next !== $data ) {
+				update_post_meta( $post->ID, 'kirki', $next );
+			}
+		}
 	}
 
 	/**

@@ -152,6 +152,7 @@ Application passwords are a WordPress core feature. On a live site they require 
 - CSS is rejected when it contains markup, `expression()`, `javascript:`, or `@import`.
 - Section titles and symbol names are limited to letters, numbers, spaces, dots, underscores, and hyphens. Kirki prints a section title as `id="…"` with no escaping.
 - Kirki prints a custom font's `fontUrl`, or its `localUrl` when one is set, into a stylesheet link without escaping. New URLs are checked before they are stored. URLs already stored, including ones saved by Kirki's own font screen, are passed through `esc_url_raw` on the way out, via the `get_post_metadata` filter, before Kirki prints them. `audit-unsafe-titles` lists section titles and symbol names that were stored before that character limit and have not been saved again.
+- Updating a global class refreshes the copy stored on every symbol that uses it. `reapply-global-classes` with `symbol_id` does the same pass, and also strips default local CSS.
 - `remove-element` and `trash-page` refuse to run unless `confirm` is `true`.
 - Edits to a published page stay on an unpublished Kirki stage until `publish-page`. Drafts are saved in post meta. `writing_to` on each page response says which of the two happened.
 
@@ -160,9 +161,10 @@ Application passwords are a WordPress core feature. On a live site they require 
 ```bash
 php phpunit.phar --configuration phpunit.xml.dist
 bash bin/build-zip.sh
+wp eval-file tests/e2e/staging-check.php
 ```
 
-The zip is written to `dist/kirki-mcp-0.2.4.zip`.
+`tests/e2e/staging-check.php` is run with `wp eval-file` against a WordPress install. It publishes a page, edits it, and publishes again. The zip is written to `dist/kirki-mcp-0.2.5.zip`.
 
 ## Known gaps
 

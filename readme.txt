@@ -4,7 +4,7 @@ Tags: kirki, mcp, ai, page-builder, abilities
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.2.4
+Stable tag: 0.2.5
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -52,6 +52,11 @@ Kirki 6.4.x only. It was tested with 6.4.2. Kirki 6.5 and 7 are not supported. F
 Yes, with `kirki-mcp/publish-page`, and only when the user can publish pages.
 
 == Changelog ==
+
+= 0.2.5 =
+* Select and radio option values cannot contain quotes or markup. Labels are stored as HTML entities.
+* Radio fields keep required. Field ids are unique per form.
+* Updating a global class refreshes the copy stored on symbols that use it.
 
 = 0.2.4 =
 * After publish, an older Kirki revision is no longer treated as the open stage.

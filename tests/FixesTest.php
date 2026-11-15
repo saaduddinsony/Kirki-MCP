@@ -721,9 +721,9 @@ class FixesTest extends TestCase {
 			}
 			if ( 'select' === $block['name'] ) {
 				$saw_select = true;
-				$this->assertSame( 'field-need', $block['properties']['attributes']['id'] );
+				$this->assertMatchesRegularExpression( '/^field-.+-need$/', $block['properties']['attributes']['id'] );
 			}
-			if ( isset( $block['properties']['attributes']['for'] ) && 'field-need' === $block['properties']['attributes']['for'] ) {
+			if ( isset( $block['properties']['attributes']['for'] ) && preg_match( '/^field-.+-need$/', $block['properties']['attributes']['for'] ) ) {
 				$saw_for = true;
 			}
 		}
@@ -733,6 +733,165 @@ class FixesTest extends TestCase {
 		$schema = Spec_Compiler::schema();
 		$this->assertStringContainsString( 'navigation', $schema['element']['type'] );
 		$this->assertArrayHasKey( 'success_message', $schema['element'] );
+	}
+
+	/**
+	 * A media value cannot smuggle another attribute.
+	 */
+	/**
+	 * Select and radio option values cannot break out of Kirki's single-quoted attributes.
+	 */
+	public function test_option_values_and_labels_are_safe() {
+		$payload = "x' autofocus onfocus='alert(document.domain)";
+		$angle   = "a < b' onmouseover='alert(1)";
+		foreach ( array( 'select', 'radio' ) as $type ) {
+			try {
+				Document::from_sections(
+					array(
+						array(
+							'elements' => array(
+								array(
+									'type'   => 'form',
+									'email'  => 'hello@example.com',
+									'fields' => array(
+										array(
+											'name'    => 'plan',
+											'label'   => 'Plan',
+											'type'    => $type,
+											'options' => array( $payload ),
+										),
+									),
+								),
+							),
+						),
+					)
+				);
+				$this->fail( $type . ' accepted a quoted option value.' );
+			} catch ( InvalidArgumentException $error ) {
+				$this->assertStringContainsString( 'option value', strtolower( $error->getMessage() ) );
+			}
+
+			$document = Document::from_sections(
+				array(
+					array(
+						'elements' => array(
+							array(
+								'type'   => 'form',
+								'email'  => 'hello@example.com',
+								'fields' => array(
+									array(
+										'name'     => 'plan',
+										'label'    => 'Plan',
+										'type'     => $type,
+										'required' => true,
+										'options'  => array(
+											array(
+												'value' => 'site',
+												'label' => $payload,
+											),
+											array(
+												'value' => 'angle',
+												'label' => $angle,
+											),
+										),
+									),
+								),
+							),
+						),
+					)
+				)
+			);
+			$labels = array();
+			$required = null;
+			foreach ( $document->blocks as $block ) {
+				if ( 'select' === $block['name'] && isset( $block['properties']['options']['list'] ) ) {
+					foreach ( $block['properties']['options']['list'] as $option ) {
+						$labels[] = $option['contents'];
+					}
+				}
+				if ( 'radio-group' === $block['name'] ) {
+					$required = $block['properties']['attributes']['required'];
+					foreach ( $block['properties']['data']['child'] as $option ) {
+						$labels[] = $option['content'];
+					}
+				}
+			}
+			$this->assertNotEmpty( $labels );
+			foreach ( $labels as $label ) {
+				$this->assertStringNotContainsString( "'", $label );
+				$this->assertStringNotContainsString( '<', $label );
+				$this->assertStringContainsString( '&#039;', $label );
+			}
+			if ( 'radio' === $type ) {
+				$this->assertTrue( $required );
+			}
+		}
+	}
+
+	/**
+	 * Two forms on one page do not share an input id.
+	 */
+	public function test_form_field_ids_are_unique_per_form() {
+		$document = Document::from_sections(
+			array(
+				array(
+					'elements' => array(
+						array(
+							'type'   => 'form',
+							'email'  => 'one@example.com',
+							'fields' => array(
+								array(
+									'name'  => 'email',
+									'label' => 'Email',
+									'type'  => 'email',
+								),
+							),
+						),
+						array(
+							'type'   => 'form',
+							'email'  => 'two@example.com',
+							'fields' => array(
+								array(
+									'name'  => 'email',
+									'label' => 'Email',
+									'type'  => 'email',
+								),
+							),
+						),
+					),
+				),
+			)
+		);
+		$ids = array();
+		foreach ( $document->blocks as $block ) {
+			if ( isset( $block['properties']['attributes']['id'] ) && isset( $block['properties']['attributes']['name'] ) && 'email' === $block['properties']['attributes']['name'] ) {
+				$ids[] = $block['properties']['attributes']['id'];
+			}
+		}
+		$this->assertCount( 2, array_unique( $ids ) );
+	}
+
+	/**
+	 * Updating a class refreshes the copy stored on a symbol that uses it.
+	 */
+	public function test_symbol_class_copy_refreshes() {
+		$updated = Symbol_Repository::refresh_class_copy(
+			array(
+				'data' => array(
+					'el' => array(
+						'properties' => array(
+							'classesIds' => array( 'class-1' ),
+						),
+					),
+				),
+				'styleBlocks' => array(
+					'class-1' => array( 'name' => 'old' ),
+				),
+			),
+			'class-1',
+			array( 'name' => 't-display', 'variant' => array( 'md' => 'font-size:64px;' ) )
+		);
+		$this->assertSame( 't-display', $updated['styleBlocks']['class-1']['name'] );
 	}
 
 	/**

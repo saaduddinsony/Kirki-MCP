@@ -378,6 +378,39 @@ class Symbol_Repository {
 	}
 
 	/**
+	 * Update one symbol's stored class snapshot when that class changes.
+	 *
+	 * @param array  $data Symbol meta.
+	 * @param string $class_id Style-block id.
+	 * @param array  $block Updated class block.
+	 * @return array
+	 */
+	public static function refresh_class_copy( array $data, $class_id, array $block ) {
+		$uses = false;
+		if ( isset( $data['data'] ) && is_array( $data['data'] ) ) {
+			foreach ( $data['data'] as $element ) {
+				if ( ! is_array( $element ) ) {
+					continue;
+				}
+				$ids = isset( $element['properties']['classesIds'] ) ? $element['properties']['classesIds'] : array();
+				if ( is_array( $ids ) && in_array( $class_id, $ids, true ) ) {
+					$uses = true;
+					break;
+				}
+			}
+		}
+		$has_copy = isset( $data['styleBlocks'][ $class_id ] );
+		if ( ! $uses && ! $has_copy ) {
+			return $data;
+		}
+		if ( ! isset( $data['styleBlocks'] ) || ! is_array( $data['styleBlocks'] ) ) {
+			$data['styleBlocks'] = array();
+		}
+		$data['styleBlocks'][ $class_id ] = $block;
+		return $data;
+	}
+
+	/**
 	 * Copy referenced global classes into the symbol so Kirki can render them.
 	 *
 	 * Symbol rendering only sees style blocks stored on the symbol.
