@@ -199,13 +199,13 @@ class Symbol_Repository {
 
 		$post_id = (int) $saved->id;
 		try {
-			$built = self::stamp_root_id( $built, $post_id );
-			self::assert_ids_unique( $post_id, $built );
+			$built = self::commit_shape( $built, $post_id );
 		} catch ( \Throwable $error ) {
 			wp_delete_post( $post_id, true );
 			throw $error;
 		}
-		update_post_meta( $post_id, 'kirki', $built );
+		Json_Data::update_meta( $post_id, 'kirki', $built );
+		Json_Data::update_meta( $post_id, 'kirki_mcp_symbol', '1' );
 		wp_update_post(
 			array(
 				'ID'          => $post_id,
@@ -241,12 +241,6 @@ class Symbol_Repository {
 		if ( null !== $name && '' !== $name ) {
 			$data['name'] = self::name( $name );
 		}
-		wp_update_post(
-			array(
-				'ID'         => $post->ID,
-				'post_title' => $data['name'],
-			)
-		);
 
 		$next_role = isset( $data['setAs'] ) ? $data['setAs'] : '';
 		if ( null !== $role ) {
@@ -261,11 +255,17 @@ class Symbol_Repository {
 		}
 		$data['setAs']    = '';
 		$data['category'] = 'other';
-		$data             = self::stamp_root_id( $data, $post->ID );
-		self::assert_ids_unique( $post->ID, $data );
+		$data             = self::commit_shape( $data, $post->ID );
 
-		update_post_meta( $post->ID, 'kirki', $data );
-		update_post_meta( $post->ID, 'kirki_editor_mode', 'kirki' );
+		Json_Data::update_meta( $post->ID, 'kirki', $data );
+		Json_Data::update_meta( $post->ID, 'kirki_editor_mode', 'kirki' );
+		Json_Data::update_meta( $post->ID, 'kirki_mcp_symbol', '1' );
+		wp_update_post(
+			array(
+				'ID'         => $post->ID,
+				'post_title' => $data['name'],
+			)
+		);
 		if ( '' !== $next_role ) {
 			self::assign_role( $next_role, $post->ID, false );
 		}
@@ -384,7 +384,7 @@ class Symbol_Repository {
 		}
 		$data['setAs']    = $role;
 		$data['category'] = '' !== $role ? $role : 'other';
-		update_post_meta( $post_id, 'kirki', $data );
+		Json_Data::update_meta( $post_id, 'kirki', $data );
 	}
 
 	/**
@@ -453,39 +453,176 @@ class Symbol_Repository {
 	}
 
 	/**
-	 * Give every saved symbol a unique root id once.
+	 * Whether this symbol was written by the plugin, or the caller asked for it.
 	 *
-	 * Existing header and footer symbols keep the title they were saved with
-	 * until something writes them again. This pass updates that title so the
-	 * next page render does not repeat the same HTML id.
+	 * Kirki's own editor symbols are left alone unless an update names them.
 	 *
+	 * @param array $data Symbol meta.
+	 * @param int   $post_id Symbol post id.
+	 * @param bool  $explicit The caller named this symbol.
+	 * @return bool
+	 */
+	public static function should_migrate_symbol( array $data, $post_id, $explicit = false ) {
+		if ( $explicit ) {
+			return true;
+		}
+		if ( ! empty( $data['kirkiMcp'] ) ) {
+			return true;
+		}
+		$root  = isset( $data['root'] ) ? (string) $data['root'] : 'root';
+		$title = isset( $data['data'][ $root ]['title'] ) ? (string) $data['data'][ $root ]['title'] : '';
+		$name  = isset( $data['name'] ) ? (string) $data['name'] : '';
+		return '' !== $title && self::root_html_id( $name, $post_id ) === $title;
+	}
+
+	/**
+	 * Give one plugin-built symbol a unique root element id.
+	 *
+	 * A stored PHP object is not loaded. The caller catches that and continues.
+	 *
+	 * @param int   $post_id Symbol post id.
+	 * @param mixed $data Raw meta.
+	 * @param bool  $explicit Rewrite even when the plugin did not create it.
+	 * @return array
+	 */
+	public static function migrate_one( $post_id, $data, $explicit = false ) {
+		if ( is_object( $data ) ) {
+			throw new \InvalidArgumentException( 'Symbol ' . (int) $post_id . ' is stored as a PHP object and was skipped.' );
+		}
+		if ( ! is_array( $data ) ) {
+			return array();
+		}
+		if ( ! self::should_migrate_symbol( $data, $post_id, $explicit ) ) {
+			return $data;
+		}
+		return self::rekey_root( $data, $post_id );
+	}
+
+	/**
+	 * Rewrite plugin-built symbols once.
+	 *
+	 * The done flag is autoloaded and is set even when a symbol fails, so a
+	 * bad record cannot take down the next request. Kirki editor symbols are
+	 * skipped unless $explicit_ids names them.
+	 *
+	 * @param int[] $explicit_ids Symbol ids to rewrite even if the plugin did not create them.
 	 * @return void
 	 */
-	public static function ensure_root_ids() {
-		if ( ! function_exists( 'get_option' ) || ! function_exists( 'get_posts' ) ) {
-			return;
+	public static function migrate_plugin_symbols( array $explicit_ids = array() ) {
+		try {
+			if ( function_exists( 'get_posts' ) ) {
+				$posts = get_posts(
+					array(
+						'post_type'   => 'kirki_symbol',
+						'post_status' => array( 'draft', 'publish', 'private' ),
+						'numberposts' => -1,
+						'fields'      => 'ids',
+					)
+				);
+				foreach ( $posts as $post_id ) {
+					$post_id = (int) $post_id;
+					try {
+						$raw  = get_post_meta( $post_id, 'kirki', true );
+						$next = self::migrate_one( $post_id, $raw, in_array( $post_id, $explicit_ids, true ) );
+						if ( is_array( $raw ) && $next !== $raw ) {
+							Json_Data::update_meta( $post_id, 'kirki', $next );
+							Json_Data::update_meta( $post_id, 'kirki_mcp_symbol', '1' );
+						}
+					} catch ( \Throwable $error ) {
+						error_log( 'Kirki MCP symbol migration skipped ' . $post_id . ': ' . $error->getMessage() ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+					}
+				}
+			}
+		} catch ( \Throwable $error ) {
+			error_log( 'Kirki MCP symbol migration failed: ' . $error->getMessage() ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
 		}
-		if ( '1' === (string) get_option( 'kirki_mcp_symbol_root_ids', '' ) ) {
-			return;
+		if ( function_exists( 'update_option' ) ) {
+			update_option( 'kirki_mcp_symbol_root_ids', '1' );
 		}
-		$posts = get_posts(
-			array(
-				'post_type'   => 'kirki_symbol',
-				'post_status' => array( 'draft', 'publish', 'private' ),
-				'numberposts' => -1,
-			)
-		);
-		foreach ( $posts as $post ) {
-			$data = self::read_meta( $post->ID );
-			if ( ! $data ) {
+	}
+
+	/**
+	 * Move the symbol root element to root-{post id}.
+	 *
+	 * Kirki caches section HTML ids by element id for the whole request.
+	 * Every symbol used to use the element id "root", so the footer reused
+	 * the header's cached id.
+	 *
+	 * @param array $data Symbol meta.
+	 * @param int   $post_id Symbol post id.
+	 * @return array
+	 */
+	public static function rekey_root( array $data, $post_id ) {
+		$data = self::stamp_root_id( $data, $post_id );
+		$old  = isset( $data['root'] ) ? (string) $data['root'] : 'root';
+		$new  = self::root_element_id( $post_id );
+		if ( ! isset( $data['data'][ $old ] ) || ! is_array( $data['data'][ $old ] ) ) {
+			$data['root']     = $new;
+			$data['kirkiMcp'] = 1;
+			return $data;
+		}
+		$block       = $data['data'][ $old ];
+		$block['id'] = $new;
+		if ( $old !== $new ) {
+			unset( $data['data'][ $old ] );
+		}
+		$data['data'][ $new ] = $block;
+		foreach ( $data['data'] as $id => $child ) {
+			if ( is_array( $child ) && isset( $child['parentId'] ) && $child['parentId'] === $old ) {
+				$data['data'][ $id ]['parentId'] = $new;
+			}
+		}
+		$data['root']     = $new;
+		$data['kirkiMcp'] = 1;
+		return $data;
+	}
+
+	/**
+	 * Element id of a symbol root. Unique per symbol so Kirki's id cache cannot collide.
+	 *
+	 * @param int $post_id Symbol post id.
+	 * @return string
+	 */
+	public static function root_element_id( $post_id ) {
+		$post_id = (int) $post_id;
+		return $post_id > 0 ? 'root-' . $post_id : 'root';
+	}
+
+	/**
+	 * HTML ids Kirki would print for these symbols in one request.
+	 *
+	 * The cache key is the element id. Two roots that share the id "root"
+	 * therefore share one HTML id, even when their titles differ.
+	 *
+	 * @param array $symbols Symbol meta records, in render order.
+	 * @return string[]
+	 */
+	public static function page_section_ids( array $symbols ) {
+		$tracker = array();
+		$ids     = array();
+		foreach ( $symbols as $symbol ) {
+			if ( ! is_array( $symbol ) ) {
 				continue;
 			}
-			$stamped = self::stamp_root_id( $data, $post->ID );
-			if ( $stamped !== $data ) {
-				update_post_meta( $post->ID, 'kirki', $stamped );
+			$root_key   = isset( $symbol['root'] ) ? (string) $symbol['root'] : 'root';
+			$block      = isset( $symbol['data'][ $root_key ] ) && is_array( $symbol['data'][ $root_key ] ) ? $symbol['data'][ $root_key ] : array();
+			$element_id = isset( $block['id'] ) ? (string) $block['id'] : $root_key;
+			if ( isset( $tracker[ $element_id ] ) ) {
+				$ids[] = $tracker[ $element_id ];
+				continue;
 			}
+			$title = isset( $block['title'] ) ? (string) $block['title'] : $element_id;
+			$base  = strtolower( (string) preg_replace( '/\s+/', '-', $title ) );
+			$href  = $base;
+			$n     = 1;
+			while ( in_array( $href, $tracker, true ) ) {
+				$href = $base . '-' . $n;
+				++$n;
+			}
+			$tracker[ $element_id ] = $href;
+			$ids[]                  = $href;
 		}
-		update_option( 'kirki_mcp_symbol_root_ids', '1', false );
+		return $ids;
 	}
 
 	/**
@@ -504,6 +641,27 @@ class Symbol_Repository {
 				unset( $data['data'][ $root ]['properties']['explicitAnchor'] );
 			}
 		}
+		return $data;
+	}
+
+	/**
+	 * Rekey the root, then reject the symbol before anything is written.
+	 *
+	 * @param array $data Symbol meta.
+	 * @param int   $post_id Symbol post id.
+	 * @return array
+	 */
+	private static function commit_shape( array $data, $post_id ) {
+		$data     = self::rekey_root( $data, $post_id );
+		$root     = isset( $data['root'] ) ? (string) $data['root'] : self::root_element_id( $post_id );
+		$document = Document::from_symbol(
+			isset( $data['data'] ) && is_array( $data['data'] ) ? $data['data'] : array(),
+			isset( $data['styleBlocks'] ) && is_array( $data['styleBlocks'] ) ? $data['styleBlocks'] : array(),
+			$root
+		);
+		$document->validate( Global_Repository::class_id_list(), 'symbol', $root );
+		$data['data'] = $document->blocks;
+		self::assert_ids_unique( $post_id, $data );
 		return $data;
 	}
 
@@ -534,10 +692,66 @@ class Symbol_Repository {
 				$theirs = array_merge( $theirs, self::rendered_ids( $other ) );
 			}
 		}
-		$clash = self::first_id_collision( $mine, $theirs );
+		$theirs = array_merge( $theirs, self::page_anchor_ids() );
+		$clash  = self::first_id_collision( $mine, $theirs );
 		if ( '' !== $clash ) {
-			throw new \InvalidArgumentException( 'The id "' . $clash . '" is already used by another symbol. Header and footer ids must be unique on the page.' );
+			throw new \InvalidArgumentException( 'The id "' . $clash . '" is already used by another symbol or page. Header and footer ids must be unique on the page.' );
 		}
+	}
+
+	/**
+	 * Section and anchor ids already printed by pages.
+	 *
+	 * @return string[]
+	 */
+	private static function page_anchor_ids() {
+		if ( ! function_exists( 'get_posts' ) ) {
+			return array();
+		}
+		$posts = get_posts(
+			array(
+				'post_type'   => 'page',
+				'post_status' => array( 'publish', 'draft', 'private', 'pending' ),
+				'numberposts' => -1,
+				'fields'      => 'ids',
+			)
+		);
+		$ids   = array();
+		foreach ( $posts as $page_id ) {
+			$meta = get_post_meta( (int) $page_id, 'kirki', true );
+			if ( ! is_array( $meta ) ) {
+				continue;
+			}
+			$blocks = isset( $meta['blocks'] ) && is_array( $meta['blocks'] ) ? $meta['blocks'] : $meta;
+			$ids    = array_merge( $ids, self::anchor_ids_in_blocks( $blocks ) );
+		}
+		return $ids;
+	}
+
+	/**
+	 * Anchors and section ids inside one element map.
+	 *
+	 * @param array $blocks Elements.
+	 * @return string[]
+	 */
+	public static function anchor_ids_in_blocks( array $blocks ) {
+		$ids = array();
+		foreach ( $blocks as $block ) {
+			if ( ! is_array( $block ) ) {
+				continue;
+			}
+			if ( ! empty( $block['properties']['explicitAnchor'] ) ) {
+				$ids[] = Spec_Compiler::anchor_slug( $block['properties']['explicitAnchor'] );
+			}
+			if ( ! empty( $block['properties']['customAttributes']['id'] ) ) {
+				$ids[] = Spec_Compiler::anchor_slug( $block['properties']['customAttributes']['id'] );
+			}
+			if ( isset( $block['name'] ) && 'section' === $block['name'] && ! empty( $block['title'] ) ) {
+				$ids[] = Spec_Compiler::anchor_slug( $block['title'] );
+			}
+		}
+		$ids = array_filter( $ids );
+		return array_values( array_unique( $ids ) );
 	}
 
 	/**
@@ -625,7 +839,7 @@ class Symbol_Repository {
 		$count               = $document->release_class_defaults( $clear_local );
 		$data['data']        = $document->blocks;
 		$data['styleBlocks'] = self::include_global_classes( $document->blocks, $document->styles );
-		update_post_meta( $post->ID, 'kirki', $data );
+		Json_Data::update_meta( $post->ID, 'kirki', $data );
 		return $count;
 	}
 
@@ -718,7 +932,7 @@ class Symbol_Repository {
 			$data = self::read_meta( $post->ID );
 			if ( isset( $data['setAs'] ) && $data['setAs'] === $role ) {
 				$data['setAs'] = '';
-				update_post_meta( $post->ID, 'kirki', $data );
+				Json_Data::update_meta( $post->ID, 'kirki', $data );
 			}
 		}
 	}
@@ -746,10 +960,21 @@ class Symbol_Repository {
 	 */
 	private static function symbol( $symbol_id ) {
 		$post = get_post( (int) $symbol_id );
-		if ( ! $post || 'kirki_symbol' !== $post->post_type ) {
-			throw new \InvalidArgumentException( 'Symbol ' . (int) $symbol_id . ' was not found.' );
-		}
+		self::assert_symbol_post( $post );
 		return $post;
+	}
+
+	/**
+	 * Reject a symbol_id that is not a kirki_symbol post.
+	 *
+	 * @param mixed $post Post object, or null.
+	 * @return void
+	 */
+	public static function assert_symbol_post( $post ) {
+		$type = is_object( $post ) && isset( $post->post_type ) ? (string) $post->post_type : '';
+		if ( 'kirki_symbol' !== $type ) {
+			throw new \InvalidArgumentException( 'symbol_id must be a Kirki symbol.' );
+		}
 	}
 
 	/**

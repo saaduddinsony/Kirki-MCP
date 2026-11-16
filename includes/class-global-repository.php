@@ -155,7 +155,7 @@ class Global_Repository {
 		$blocks[ $id ]['name']          = $name;
 
 		\Kirki\App\Supports\Facades\GlobalData::update_style_blocks( $blocks );
-		self::refresh_symbol_class_copies( $id, $blocks[ $id ] );
+		self::queue_symbol_refresh();
 
 		return array(
 			'id'        => $id,
@@ -166,13 +166,64 @@ class Global_Repository {
 	}
 
 	/**
-	 * Replace the class snapshot stored on symbols that use this class.
+	 * How many symbols one class update writes before yielding.
+	 */
+	const REFRESH_BATCH = 20;
+
+	/**
+	 * Header and footer symbols first, then the rest.
 	 *
-	 * @param string $class_id Style-block id.
-	 * @param array  $block Updated class block.
+	 * @param array $symbols List of array{id:int,set_as:string}.
+	 * @return int[]
+	 */
+	public static function refresh_order( array $symbols ) {
+		$first = array();
+		$rest  = array();
+		foreach ( $symbols as $symbol ) {
+			$id   = isset( $symbol['id'] ) ? (int) $symbol['id'] : 0;
+			$role = isset( $symbol['set_as'] ) ? (string) $symbol['set_as'] : '';
+			if ( $id <= 0 ) {
+				continue;
+			}
+			if ( 'header' === $role || 'footer' === $role ) {
+				$first[] = $id;
+			} else {
+				$rest[] = $id;
+			}
+		}
+		return array_merge( $first, $rest );
+	}
+
+	/**
+	 * One slice of a symbol refresh. A class update must not save every symbol in the request.
+	 *
+	 * @param int[] $ids Symbol ids in refresh order.
+	 * @param int   $offset Start.
+	 * @param int   $limit Batch size.
+	 * @return array{ids:int[],next_offset:int,done:bool}
+	 */
+	public static function refresh_plan( array $ids, $offset, $limit = self::REFRESH_BATCH ) {
+		$offset = max( 0, (int) $offset );
+		$limit  = max( 1, (int) $limit );
+		$slice  = array_slice( array_values( $ids ), $offset, $limit );
+		$next   = $offset + count( $slice );
+		return array(
+			'ids'         => $slice,
+			'next_offset' => $next,
+			'done'        => $next >= count( $ids ),
+		);
+	}
+
+	/**
+	 * Queue a batched refresh. Kirki's own class screen does not call this.
+	 *
+	 * Kirki writes class blocks through its database layer and fires no action,
+	 * so an edit made in the Kirki UI is not copied onto symbols until the next
+	 * upsert-global-class or reapply-global-classes.
+	 *
 	 * @return void
 	 */
-	private static function refresh_symbol_class_copies( $class_id, array $block ) {
+	private static function queue_symbol_refresh() {
 		if ( ! function_exists( 'get_posts' ) ) {
 			return;
 		}
@@ -181,17 +232,77 @@ class Global_Repository {
 				'post_type'   => 'kirki_symbol',
 				'post_status' => array( 'draft', 'publish', 'private' ),
 				'numberposts' => -1,
+				'fields'      => 'ids',
 			)
 		);
-		foreach ( $posts as $post ) {
-			$data = get_post_meta( $post->ID, 'kirki', true );
+		if ( function_exists( 'update_meta_cache' ) ) {
+			update_meta_cache( 'post', $posts );
+		}
+		$rows = array();
+		foreach ( $posts as $post_id ) {
+			$data = get_post_meta( (int) $post_id, 'kirki', true );
 			if ( ! is_array( $data ) ) {
 				continue;
 			}
-			$next = Symbol_Repository::refresh_class_copy( $data, $class_id, $block );
-			if ( $next !== $data ) {
-				update_post_meta( $post->ID, 'kirki', $next );
+			$rows[] = array(
+				'id'     => (int) $post_id,
+				'set_as' => isset( $data['setAs'] ) ? (string) $data['setAs'] : '',
+			);
+		}
+		update_option( 'kirki_mcp_symbol_refresh_queue', self::refresh_order( $rows ), false );
+		update_option( 'kirki_mcp_symbol_refresh_offset', 0, false );
+		self::refresh_symbol_batch();
+		$offset = (int) get_option( 'kirki_mcp_symbol_refresh_offset', 0 );
+		$queue  = get_option( 'kirki_mcp_symbol_refresh_queue', array() );
+		if ( is_array( $queue ) && $offset < count( $queue ) && function_exists( 'wp_schedule_single_event' ) && function_exists( 'wp_next_scheduled' ) ) {
+			if ( ! wp_next_scheduled( 'kirki_mcp_refresh_symbol_classes' ) ) {
+				wp_schedule_single_event( time() + 5, 'kirki_mcp_refresh_symbol_classes' );
 			}
+		}
+	}
+
+	/**
+	 * Write the current global classes onto the next batch of symbols.
+	 *
+	 * @return void
+	 */
+	public static function refresh_symbol_batch() {
+		$queue  = get_option( 'kirki_mcp_symbol_refresh_queue', array() );
+		$offset = (int) get_option( 'kirki_mcp_symbol_refresh_offset', 0 );
+		if ( ! is_array( $queue ) || ! $queue ) {
+			return;
+		}
+		$plan   = self::refresh_plan( $queue, $offset, self::REFRESH_BATCH );
+		$blocks = array();
+		try {
+			$blocks = self::style_blocks();
+		} catch ( \Throwable $error ) {
+			unset( $error );
+			$blocks = array();
+		}
+		foreach ( $plan['ids'] as $post_id ) {
+			$data = get_post_meta( (int) $post_id, 'kirki', true );
+			if ( ! is_array( $data ) ) {
+				continue;
+			}
+			$next = $data;
+			foreach ( $blocks as $class_id => $block ) {
+				if ( is_array( $block ) ) {
+					$next = Symbol_Repository::refresh_class_copy( $next, (string) $class_id, $block );
+				}
+			}
+			if ( $next !== $data ) {
+				Json_Data::update_meta( $post_id, 'kirki', $next );
+			}
+		}
+		if ( $plan['done'] ) {
+			delete_option( 'kirki_mcp_symbol_refresh_queue' );
+			delete_option( 'kirki_mcp_symbol_refresh_offset' );
+			return;
+		}
+		update_option( 'kirki_mcp_symbol_refresh_offset', $plan['next_offset'], false );
+		if ( function_exists( 'wp_next_scheduled' ) && function_exists( 'wp_schedule_single_event' ) && ! wp_next_scheduled( 'kirki_mcp_refresh_symbol_classes' ) ) {
+			wp_schedule_single_event( time() + 5, 'kirki_mcp_refresh_symbol_classes' );
 		}
 	}
 

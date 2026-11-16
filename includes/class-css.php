@@ -337,35 +337,58 @@ class Css {
 		}
 
 		if ( preg_match( '/^(mailto:|tel:)/i', $url ) ) {
-			if ( preg_match( '/[\s<>"\']/', $url ) ) {
-				throw new \InvalidArgumentException( 'That URL was rejected.' );
-			}
-			return $url;
+			return self::attribute_url( $url );
 		}
 
 		if ( '#' === $url[0] ) {
-			if ( ! preg_match( '/^#[A-Za-z0-9_-]+$/', $url ) ) {
+			$url = self::attribute_url( $url );
+			if ( ! preg_match( '/^#[A-Za-z0-9_%.-]+$/', $url ) ) {
 				throw new \InvalidArgumentException( 'Fragment links must look like #section-name.' );
 			}
 			return $url;
 		}
 
+		$clean = $url;
 		if ( function_exists( 'esc_url_raw' ) ) {
 			$clean = esc_url_raw( $url );
 			if ( ! is_string( $clean ) || '' === $clean ) {
 				throw new \InvalidArgumentException( 'That URL was rejected.' );
 			}
-			return $clean;
+		} elseif ( ! preg_match( '#^(https?:)?//#i', $url ) && ! preg_match( '#^/#', $url ) ) {
+			throw new \InvalidArgumentException( 'URLs must be absolute http(s) addresses or site-relative paths.' );
 		}
 
-		if ( preg_match( '#^(https?:)?//#i', $url ) || preg_match( '#^/#', $url ) ) {
-			if ( preg_match( '/[\s<>"\']|javascript\s*:/i', $url ) ) {
-				throw new \InvalidArgumentException( 'That URL was rejected.' );
-			}
-			return $url;
+		if ( preg_match( '/javascript\s*:/i', $clean ) ) {
+			throw new \InvalidArgumentException( 'That URL was rejected.' );
 		}
 
-		throw new \InvalidArgumentException( 'URLs must be absolute http(s) addresses or site-relative paths.' );
+		// esc_url_raw keeps apostrophes. Kirki prints link-text hrefs inside single quotes.
+		return self::attribute_url( $clean );
+	}
+
+	/**
+	 * Percent-encode characters that break out of a quoted href.
+	 *
+	 * Safe to call more than once: encoded characters are not encoded again.
+	 *
+	 * @param string $url URL that may already have been through esc_url_raw.
+	 * @return string
+	 */
+	public static function attribute_url( $url ) {
+		return strtr(
+			(string) $url,
+			array(
+				"'"  => '%27',
+				'"'  => '%22',
+				'`'  => '%60',
+				'<'  => '%3C',
+				'>'  => '%3E',
+				' '  => '%20',
+				"\t" => '%09',
+				"\n" => '%0A',
+				"\r" => '%0D',
+			)
+		);
 	}
 
 	/**

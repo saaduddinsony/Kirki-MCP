@@ -17,7 +17,7 @@ Pages are stored in the same post meta Kirki's editor writes (`kirki` for the el
 
 1. Install and activate **Kirki** and **MCP Adapter** from Plugins → Add New.
 2. Install this plugin. Either upload the release zip from `bin/build-zip.sh`, or copy this directory to `wp-content/plugins/kirki-mcp` and activate **Kirki MCP**.
-3. In WordPress, open **Users → Profile**, scroll to **Application Passwords**, and create a password for your agent. The user needs `edit_pages` to design pages, `publish_pages` to publish, and `edit_theme_options` to change global classes and variables. An administrator has all of these.
+3. In WordPress, open **Users → Profile**, scroll to **Application Passwords**, and create a password for your agent. The user needs Kirki builder access, which Kirki gives to administrators and editors. `edit_pages` is required to design pages and `publish_pages` to publish. Builder access is enough to change global classes and variables.
 4. Confirm the endpoint on **Settings → Kirki MCP**. It is:
 
 ```text
@@ -152,7 +152,7 @@ Application passwords are a WordPress core feature. On a live site they require 
 - CSS is rejected when it contains markup, `expression()`, `javascript:`, or `@import`.
 - Section titles and symbol names are limited to letters, numbers, spaces, dots, underscores, and hyphens. Kirki prints a section title as `id="…"` with no escaping.
 - Kirki prints a custom font's `fontUrl`, or its `localUrl` when one is set, into a stylesheet link without escaping. New URLs are checked before they are stored. URLs already stored, including ones saved by Kirki's own font screen, are passed through `esc_url_raw` on the way out, via the `get_post_metadata` filter, before Kirki prints them. `audit-unsafe-titles` lists section titles and symbol names that were stored before that character limit and have not been saved again.
-- Updating a global class refreshes the copy stored on every symbol that uses it. `reapply-global-classes` with `symbol_id` does the same pass, and also strips default local CSS.
+- Updating a global class through this plugin refreshes the copy stored on symbols that use it, 20 symbols at a time, header and footer first. The rest continue on a single scheduled follow-up. Kirki's own class screen writes through its database layer and does not notify the plugin, so those edits are copied the next time `upsert-global-class` or `reapply-global-classes` runs. `reapply-global-classes` with `symbol_id` updates that one symbol and also strips default local CSS.
 - `remove-element` and `trash-page` refuse to run unless `confirm` is `true`.
 - Edits to a published page stay on an unpublished Kirki stage until `publish-page`. Drafts are saved in post meta. `writing_to` on each page response says which of the two happened.
 
@@ -161,10 +161,10 @@ Application passwords are a WordPress core feature. On a live site they require 
 ```bash
 php phpunit.phar --configuration phpunit.xml.dist
 bash bin/build-zip.sh
-wp eval-file tests/e2e/staging-check.php
+KIRKI_MCP_STAGING_CHECK=1 wp eval-file tests/e2e/staging-check.php
 ```
 
-`tests/e2e/staging-check.php` is run with `wp eval-file` against a WordPress install. It publishes a page, edits it, and publishes again. The zip is written to `dist/kirki-mcp-0.2.6.zip`.
+`tests/e2e/staging-check.php` is for a test install. It refuses to run unless `KIRKI_MCP_STAGING_CHECK` is set. It publishes a page, edits it, publishes again, and temporarily takes the header role, then deletes that page and restores the previous header. The zip is written to `dist/kirki-mcp-0.2.7.zip`.
 
 ## Known gaps
 

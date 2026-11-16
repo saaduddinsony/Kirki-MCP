@@ -2,13 +2,22 @@
 /**
  * Runtime checks for staging, publish, and symbol role order.
  *
- * Run with: wp eval-file tests/e2e/staging-check.php --path=/tmp/wp
+ * Test installs only. It publishes a page and temporarily takes the header
+ * role, then deletes that page and restores the previous header.
+ *
+ * Run with: KIRKI_MCP_STAGING_CHECK=1 wp eval-file tests/e2e/staging-check.php --path=/tmp/wp
  *
  * @package KirkiMCP
  */
 
 if ( ! function_exists( 'wp_set_current_user' ) ) {
 	fwrite( STDERR, "Load this file with wp eval-file.\n" );
+	return;
+}
+
+$kirki_mcp_staging_ok = ( defined( 'KIRKI_MCP_STAGING_CHECK' ) && KIRKI_MCP_STAGING_CHECK ) || getenv( 'KIRKI_MCP_STAGING_CHECK' );
+if ( ! $kirki_mcp_staging_ok ) {
+	fwrite( STDERR, "Refusing to run. This script publishes a page and changes the site header. Set KIRKI_MCP_STAGING_CHECK=1 on a test install.\n" );
 	return;
 }
 
@@ -31,6 +40,25 @@ function kirki_mcp_run( $name, array $parameters ) {
 	return $result;
 }
 
+$kirki_mcp_page_id   = 0;
+$kirki_mcp_header_id = 0;
+$kirki_mcp_previous  = 0;
+$kirki_mcp_symbols   = get_posts(
+	array(
+		'post_type'   => 'kirki_symbol',
+		'post_status' => array( 'draft', 'publish', 'private' ),
+		'numberposts' => -1,
+	)
+);
+foreach ( $kirki_mcp_symbols as $kirki_mcp_symbol ) {
+	$kirki_mcp_meta = get_post_meta( $kirki_mcp_symbol->ID, 'kirki', true );
+	if ( is_array( $kirki_mcp_meta ) && 'header' === ( $kirki_mcp_meta['setAs'] ?? '' ) ) {
+		$kirki_mcp_previous = (int) $kirki_mcp_symbol->ID;
+		break;
+	}
+}
+
+try {
 $created = kirki_mcp_run(
 	'create-page',
 	array(
@@ -51,7 +79,8 @@ $created = kirki_mcp_run(
 	)
 );
 
-$page_id = (int) $created['id'];
+$page_id             = (int) $created['id'];
+$kirki_mcp_page_id   = $page_id;
 $heading = $created['tree']['children'][0]['children'][0]['children'][0]['id'];
 $live    = get_post_meta( $page_id, 'kirki', true );
 if ( false === strpos( wp_json_encode( $live ), 'Published heading' ) ) {
@@ -122,7 +151,8 @@ $header = kirki_mcp_run(
 		),
 	)
 );
-$read   = kirki_mcp_run( 'get-symbol', array( 'symbol_id' => $header['id'] ) );
+$kirki_mcp_header_id = (int) $header['id'];
+$read                = kirki_mcp_run( 'get-symbol', array( 'symbol_id' => $header['id'] ) );
 if ( empty( $read['tree']['children'][0]['text'] ) || 'Keep this header' !== $read['tree']['children'][0]['children'][0]['text'] && 'Keep this header' !== $read['tree']['children'][0]['text'] ) {
 	$encoded = wp_json_encode( $read['tree'] );
 	if ( false === strpos( $encoded, 'Keep this header' ) ) {
@@ -157,3 +187,24 @@ if ( ! is_array( $kept ) || ( $kept['setAs'] ?? '' ) !== 'header' ) {
 }
 
 echo "staging and symbol checks passed for page {$page_id}\n";
+} finally {
+	if ( $kirki_mcp_previous && $kirki_mcp_previous !== $kirki_mcp_header_id ) {
+		try {
+			kirki_mcp_run(
+				'update-symbol',
+				array(
+					'symbol_id' => $kirki_mcp_previous,
+					'role'      => 'header',
+				)
+			);
+		} catch ( Throwable $error ) {
+			fwrite( STDERR, 'Could not restore the previous header: ' . $error->getMessage() . "\n" );
+		}
+	}
+	if ( $kirki_mcp_header_id ) {
+		wp_delete_post( $kirki_mcp_header_id, true );
+	}
+	if ( $kirki_mcp_page_id ) {
+		wp_delete_post( $kirki_mcp_page_id, true );
+	}
+}

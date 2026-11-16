@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.7
+
+- Link URLs are percent-encoded for `' " ` < >` and whitespace. `esc_url_raw` keeps apostrophes, and Kirki prints link-text hrefs inside single quotes. Stored `kirki` meta is hardened on read, and a one-time rewrite runs on activation, an admin upgrade, or an authorized ability call.
+- A section link can only point at a section or an element with an anchor. Titles that Kirki turns into that href go through `safe_label` on write and when the target is renamed.
+- Form names go through `safe_label`. Kirki prints them with `wp_json_encode` and no HTML escaping.
+- Each symbol root element id is `root-{post id}`. Kirki caches section HTML ids by element id for the whole request, so two symbols whose root id was `root` shared one HTML id. Plugin-built symbols are migrated on activation, upgrade, or an authorized write. Symbols created in Kirki's editor are skipped unless an update names them. The done flag is autoloaded and is set even if a record fails.
+- `duplicate-page` inserts the copy as a draft. Slugs use `sanitize_title`, so non-ASCII titles are kept the way WordPress keeps them.
+- A symbol update is validated before the post is renamed. Symbol anchors are checked against page anchors. `symbol_id` must be a Kirki symbol. Form-field classes are applied, or rejected if they were not resolved.
+- Updating a global class refreshes symbol copies 20 at a time, header and footer first. Kirki's own class screen does not fire a hook, so those edits are copied on the next plugin class save or `reapply-global-classes`.
+- Meta writes go through `wp_slash`, so backslashes survive `update_post_meta`.
+- `tests/e2e/staging-check.php` runs only when `KIRKI_MCP_STAGING_CHECK` is set, then deletes its page and restores the previous header.
+- Global classes and variables need Kirki builder access. `edit_theme_options` is not required.
+
 ## 0.2.6
 
 - `duplicate-page` always creates a draft, even when the source page is published. Optional `title` and `slug` are sanitized, and the slug is made unique.

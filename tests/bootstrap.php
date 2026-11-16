@@ -38,3 +38,4 @@ require dirname( __DIR__ ) . '/includes/class-spec-compiler.php';
 require dirname( __DIR__ ) . '/includes/class-document.php';
 require dirname( __DIR__ ) . '/includes/class-symbol-repository.php';
 require dirname( __DIR__ ) . '/includes/class-page-repository.php';
+require dirname( __DIR__ ) . '/includes/class-global-repository.php';

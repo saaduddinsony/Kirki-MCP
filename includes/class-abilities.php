@@ -507,7 +507,7 @@ class Abilities {
 				array( self::class, 'list_global_classes' ),
 				true,
 				false,
-				'edit_theme_options'
+				'edit_pages'
 			),
 			'upsert-global-class'    => self::tool(
 				'Create or update a global class',
@@ -527,7 +527,7 @@ class Abilities {
 				array( self::class, 'upsert_global_class' ),
 				true,
 				false,
-				'edit_theme_options'
+				'edit_pages'
 			),
 			'list-global-variables'  => self::tool(
 				'List global variables',
@@ -540,7 +540,7 @@ class Abilities {
 				array( self::class, 'list_global_variables' ),
 				true,
 				false,
-				'edit_theme_options'
+				'edit_pages'
 			),
 			'set-global-variables'   => self::tool(
 				'Set global colors, fonts, and sizes',
@@ -606,7 +606,7 @@ class Abilities {
 				array( self::class, 'set_global_variables' ),
 				true,
 				false,
-				'edit_theme_options'
+				'edit_pages'
 			),
 			'upload-media'           => self::tool(
 				'Upload an image',
@@ -991,7 +991,14 @@ class Abilities {
 				if ( empty( $input['symbol_id'] ) && empty( $input['page_id'] ) ) {
 					throw new \InvalidArgumentException( 'Pass page_id or symbol_id.' );
 				}
-				$target = ! empty( $input['symbol_id'] ) ? (int) $input['symbol_id'] : (int) $input['page_id'];
+				if ( ! empty( $input['symbol_id'] ) ) {
+					Symbol_Repository::assert_symbol_post( get_post( (int) $input['symbol_id'] ) );
+					return array(
+						'symbol_id' => (int) $input['symbol_id'],
+						'elements'  => Symbol_Repository::reapply_classes( (int) $input['symbol_id'], ! empty( $input['clear_local'] ) ),
+					);
+				}
+				$target = (int) $input['page_id'];
 				$post   = get_post( $target );
 				if ( $post && 'kirki_symbol' === $post->post_type ) {
 					return array(
@@ -1277,6 +1284,7 @@ class Abilities {
 	 */
 	private static function guard( $callback ) {
 		try {
+			Plugin::migrate_if_needed();
 			return call_user_func( $callback );
 		} catch ( \InvalidArgumentException $error ) {
 			return new \WP_Error( 'kirki_mcp_invalid', $error->getMessage() );

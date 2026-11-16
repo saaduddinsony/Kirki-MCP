@@ -56,4 +56,49 @@ class Json_Data {
 			}
 		}
 	}
+
+	/**
+	 * Add slashes so update_post_meta's wp_unslash restores the original value.
+	 *
+	 * @param mixed $value Scalar or array.
+	 * @return mixed
+	 */
+	public static function slash( $value ) {
+		if ( function_exists( 'wp_slash' ) ) {
+			return wp_slash( $value );
+		}
+		return self::add_slash( $value );
+	}
+
+	/**
+	 * Write post meta without losing backslashes.
+	 *
+	 * @param int    $post_id Post id.
+	 * @param string $key Meta key.
+	 * @param mixed  $value Meta value.
+	 * @return void
+	 */
+	public static function update_meta( $post_id, $key, $value ) {
+		if ( ! function_exists( 'update_post_meta' ) ) {
+			return;
+		}
+		update_post_meta( (int) $post_id, $key, self::slash( $value ) );
+	}
+
+	/**
+	 * @param mixed $value Value.
+	 * @return mixed
+	 */
+	private static function add_slash( $value ) {
+		if ( is_array( $value ) ) {
+			foreach ( $value as $key => $item ) {
+				$value[ $key ] = self::add_slash( $item );
+			}
+			return $value;
+		}
+		if ( is_string( $value ) ) {
+			return addslashes( $value );
+		}
+		return $value;
+	}
 }

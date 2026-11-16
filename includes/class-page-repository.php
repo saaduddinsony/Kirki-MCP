@@ -146,11 +146,11 @@ class Page_Repository {
 			\Kirki\App\Supports\Facades\Page::save_used_global_style_block_ids( $page_id, $document->class_ids(), $stage_arg );
 			\Kirki\App\Supports\Facades\Page::save_editor_mode( $page_id );
 		} else {
-			update_post_meta( $page_id, 'kirki', $blocks );
-			update_post_meta( $page_id, 'kirki_global_style_block_random', $styles );
-			update_post_meta( $page_id, 'kirki_used_style_block_ids_random', $document->local_style_ids() );
-			update_post_meta( $page_id, 'kirki_used_style_block_ids', $document->class_ids() );
-			update_post_meta( $page_id, 'kirki_editor_mode', 'kirki' );
+			Json_Data::update_meta( $page_id, 'kirki', $blocks );
+			Json_Data::update_meta( $page_id, 'kirki_global_style_block_random', $styles );
+			Json_Data::update_meta( $page_id, 'kirki_used_style_block_ids_random', $document->local_style_ids() );
+			Json_Data::update_meta( $page_id, 'kirki_used_style_block_ids', $document->class_ids() );
+			Json_Data::update_meta( $page_id, 'kirki_editor_mode', 'kirki' );
 		}
 
 		self::ensure_variable_mode( $page_id );
@@ -244,11 +244,11 @@ class Page_Repository {
 		if ( ! isset( $seo['openGraph'] ) || ! is_array( $seo['openGraph'] ) ) {
 			$seo['openGraph'] = array();
 		}
-		update_post_meta( $post->ID, 'kirki_page_seo_settings', $seo );
+		Json_Data::update_meta( $post->ID, 'kirki_page_seo_settings', $seo );
 		wp_update_post(
 			array(
 				'ID'           => $post->ID,
-				'post_excerpt' => $description,
+				'post_excerpt' => Json_Data::slash( $description ),
 			)
 		);
 		return array(
@@ -283,7 +283,7 @@ class Page_Repository {
 		if ( '' !== $body ) {
 			$code['body'] = array( 'value' => $body );
 		}
-		update_post_meta( $post->ID, 'kirki_page_custom_code', $code );
+		Json_Data::update_meta( $post->ID, 'kirki_page_custom_code', $code );
 		return array(
 			'page_id' => (int) $post->ID,
 			'head'    => isset( $code['head']['value'] ) ? $code['head']['value'] : '',
@@ -428,30 +428,33 @@ class Page_Repository {
 	 */
 	public static function duplicate( $page_id, $title = '', $slug = '' ) {
 		self::assert_ready();
-		$post = self::page( $page_id );
-		$page = \Kirki\App\Models\Page::find( $post->ID );
-		if ( ! $page ) {
-			throw new \InvalidArgumentException( 'Page ' . (int) $post->ID . ' was not found.' );
-		}
-		$copy    = ( new \Kirki\App\Services\PageService() )->duplicate_page( $page );
-		$copy_id = is_object( $copy ) ? (int) $copy->ID : 0;
-		if ( $copy_id <= 0 ) {
-			throw new \RuntimeException( 'Kirki did not duplicate the page.' );
-		}
-		$fields              = self::duplicate_fields( $post->post_title, $title, $slug );
-		$fields['post_name'] = self::unique_slug( $fields['post_name'], $copy_id );
-		wp_update_post(
+		$post   = self::page( $page_id );
+		$fields = self::duplicate_fields( $post->post_title, $title, $slug );
+		$slug   = self::unique_slug( $fields['post_name'], 0 );
+		$copy   = wp_insert_post(
 			array(
-				'ID'          => $copy_id,
-				'post_status' => 'draft',
-				'post_title'  => $fields['post_title'],
-				'post_name'   => $fields['post_name'],
-			)
+				'post_type'    => 'page',
+				'post_status'  => 'draft',
+				'post_title'   => $fields['post_title'],
+				'post_name'    => $slug,
+				'post_content' => $post->post_content,
+			),
+			true
 		);
+		if ( is_wp_error( $copy ) || (int) $copy <= 0 ) {
+			$message = is_wp_error( $copy ) ? $copy->get_error_message() : 'WordPress did not create the draft.';
+			throw new \RuntimeException( $message );
+		}
+		$copy_id  = (int) $copy;
+		$stage    = self::unpublished_stage( $post->ID );
+		$meta     = self::read_meta( $post->ID, 'kirki', $stage );
+		$styles   = self::read_meta( $post->ID, 'kirki_global_style_block_random', $stage );
+		$document = Document::from_stored( $meta, $styles );
+		self::save( $copy_id, $document, null, false );
 		foreach ( array( 'kirki_page_seo_settings', 'kirki_page_custom_code', 'kirki_disabled_page_symbols', 'kirki_variable_mode' ) as $key ) {
 			$value = get_post_meta( $post->ID, $key, true );
 			if ( '' !== $value && array() !== $value && null !== $value ) {
-				update_post_meta( $copy_id, $key, $value );
+				Json_Data::update_meta( $copy_id, $key, $value );
 			}
 		}
 		self::clean_titles_in_place( $copy_id );
@@ -472,18 +475,36 @@ class Page_Repository {
 			$new_title = trim( wp_strip_all_tags( (string) $source_title ) );
 			$new_title = '' === $new_title ? 'Page copy' : $new_title . ' copy';
 		}
-		$base = '' !== trim( (string) $slug ) ? (string) $slug : $new_title;
-		$base = strtolower( $base );
-		$base = preg_replace( '/[^a-z0-9-]+/', '-', $base );
-		$base = trim( (string) $base, '-' );
-		if ( '' === $base ) {
-			$base = 'page';
-		}
+		$base = self::slug_base( '' !== trim( (string) $slug ) ? (string) $slug : $new_title );
 		return array(
 			'post_status' => 'draft',
 			'post_title'  => $new_title,
 			'post_name'   => $base,
 		);
+	}
+
+	/**
+	 * A slug, using WordPress sanitize_title when it is available.
+	 *
+	 * The fallback keeps Unicode letters so a non-ASCII title is not reduced to "page".
+	 *
+	 * @param string $text Title or requested slug.
+	 * @return string
+	 */
+	public static function slug_base( $text ) {
+		$text = trim( wp_strip_all_tags( (string) $text ) );
+		if ( function_exists( 'sanitize_title' ) ) {
+			$slug = sanitize_title( $text );
+			return '' === $slug ? 'page' : $slug;
+		}
+		if ( function_exists( 'mb_strtolower' ) ) {
+			$text = mb_strtolower( $text, 'UTF-8' );
+		} else {
+			$text = strtolower( $text );
+		}
+		$text = preg_replace( '/[^\p{L}\p{N}]+/u', '-', $text );
+		$text = trim( (string) $text, '-' );
+		return '' === $text ? 'page' : $text;
 	}
 
 	/**
@@ -516,6 +537,50 @@ class Page_Repository {
 			++$n;
 		}
 		return $slug;
+	}
+
+	/**
+	 * Percent-encode quotes in hrefs already stored on pages and symbols.
+	 *
+	 * The done flag is autoloaded and is set even when one record fails.
+	 *
+	 * @return void
+	 */
+	public static function migrate_stored_urls() {
+		try {
+			if ( function_exists( 'get_posts' ) ) {
+				$posts = get_posts(
+					array(
+						'post_type'   => array( 'page', 'kirki_symbol' ),
+						'post_status' => array( 'publish', 'draft', 'private', 'pending' ),
+						'numberposts' => -1,
+						'fields'      => 'ids',
+					)
+				);
+				foreach ( $posts as $post_id ) {
+					try {
+						$raw = get_post_meta( (int) $post_id, 'kirki', true );
+						if ( ! is_array( $raw ) ) {
+							if ( is_object( $raw ) ) {
+								throw new \InvalidArgumentException( 'Post ' . (int) $post_id . ' meta is a PHP object.' );
+							}
+							continue;
+						}
+						$next = Document::harden_kirki_meta( $raw );
+						if ( $next !== $raw ) {
+							Json_Data::update_meta( $post_id, 'kirki', $next );
+						}
+					} catch ( \Throwable $error ) {
+						error_log( 'Kirki MCP URL migration skipped ' . (int) $post_id . ': ' . $error->getMessage() ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+					}
+				}
+			}
+		} catch ( \Throwable $error ) {
+			error_log( 'Kirki MCP URL migration failed: ' . $error->getMessage() ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+		}
+		if ( function_exists( 'update_option' ) ) {
+			update_option( 'kirki_mcp_stored_urls', '1' );
+		}
 	}
 
 	/**
@@ -596,7 +661,7 @@ class Page_Repository {
 		$styles = get_post_meta( $page_id, 'kirki_global_style_block_random', true );
 		$clean  = self::cleaned_block_meta( $blocks, $styles );
 		if ( null !== $clean ) {
-			update_post_meta( $page_id, 'kirki', $clean );
+			Json_Data::update_meta( $page_id, 'kirki', $clean );
 		}
 	}
 
@@ -864,7 +929,7 @@ class Page_Repository {
 		if ( is_string( $current ) && '' !== $current ) {
 			return;
 		}
-		update_post_meta( $page_id, 'kirki_variable_mode', 'default' );
+		Json_Data::update_meta( $page_id, 'kirki_variable_mode', 'default' );
 	}
 
 	/**
@@ -877,7 +942,7 @@ class Page_Repository {
 			return;
 		}
 		if ( class_exists( '\Kirki\App\Supports\Canvas' ) ) {
-			update_post_meta( $page_id, '_wp_page_template', \Kirki\App\Supports\Canvas::get_full_canvas_template_path() );
+			Json_Data::update_meta( $page_id, '_wp_page_template', \Kirki\App\Supports\Canvas::get_full_canvas_template_path() );
 		}
 	}
 }

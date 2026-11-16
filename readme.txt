@@ -4,7 +4,7 @@ Tags: kirki, mcp, ai, page-builder, abilities
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.2.6
+Stable tag: 0.2.7
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -28,7 +28,7 @@ Connect an agent with an application password to:
 
 See the plugin README for Claude Code, Cursor, and Claude Desktop configuration.
 
-Destructive actions (`remove-element`, `trash-page`) require an explicit `confirm` flag. Global style changes require `edit_theme_options`.
+Destructive actions (`remove-element`, `trash-page`) require an explicit `confirm` flag. Global style changes require Kirki builder access, which administrators and editors have.
 
 == Installation ==
 
@@ -52,6 +52,12 @@ Kirki 6.4.x only. It was tested with 6.4.2. Kirki 6.5 and 7 are not supported. F
 Yes, with `kirki-mcp/publish-page`, and only when the user can publish pages.
 
 == Changelog ==
+
+= 0.2.7 =
+* Link URLs cannot break out of a single-quoted href. Section links only target sections or anchored elements. Form names are safe labels.
+* Each symbol root element has its own id, so a header and footer no longer share one HTML id.
+* Symbol migration runs on activation, upgrade, or an authorized write, and skips symbols this plugin did not create.
+* Duplicated pages are inserted as drafts. A class update refreshes symbols in batches of 20.
 
 = 0.2.6 =
 * Duplicated pages are drafts. Optional title and slug are sanitized, and the slug is made unique.

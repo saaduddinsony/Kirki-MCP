@@ -83,7 +83,7 @@ class Media_Repository {
 
 		$attachment_id = (int) $data['id'];
 		if ( '' !== $alt ) {
-			update_post_meta( $attachment_id, '_wp_attachment_image_alt', $alt );
+			Json_Data::update_meta( $attachment_id, '_wp_attachment_image_alt', $alt );
 		}
 
 		$url = '';

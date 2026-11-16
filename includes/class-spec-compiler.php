@@ -629,7 +629,7 @@ class Spec_Compiler {
 						'saveData'      => true,
 					),
 					'attributes' => array(
-						'name' => self::plain_text( isset( $spec['name'] ) ? $spec['name'] : 'Contact' ),
+						'name' => self::form_name( isset( $spec['name'] ) ? $spec['name'] : 'Contact' ),
 					),
 				);
 			case 'image':
@@ -1166,10 +1166,48 @@ class Spec_Compiler {
 			}
 			$blocks[ $field_id ] = self::shell( $element_name, $label, $wrap_id, $field_id, array(), $field_props, $styles, 'width:100%;' );
 			unset( $blocks[ $field_id ]['children'] );
+			self::apply_field_classes( $field, $blocks[ $field_id ], $styles );
 			$blocks[ $wrap_id ] = self::shell( 'div', $label, $parent_id, $wrap_id, array( $label_id, $field_id ), array( 'tag' => 'div' ), $styles, 'display:flex;flex-direction:column;gap:8px;width:100%;' );
 			$ids[]              = $wrap_id;
 		}
 		return $ids;
+	}
+
+	/**
+	 * Put resolved global classes on the field control.
+	 *
+	 * Class names that were never resolved are an error, not a silent skip.
+	 *
+	 * @param array $field Field spec.
+	 * @param array $block Field element, by reference.
+	 * @param array $styles Style blocks, by reference.
+	 * @return void
+	 */
+	private static function apply_field_classes( array $field, array &$block, array &$styles ) {
+		if ( ! empty( $field['class_ids'] ) && is_array( $field['class_ids'] ) ) {
+			$ids = array();
+			foreach ( $field['class_ids'] as $class_id ) {
+				$class_id = (string) $class_id;
+				if ( ! preg_match( '/^[A-Za-z0-9_-]+$/', $class_id ) ) {
+					throw new \InvalidArgumentException( 'A global class id is not valid.' );
+				}
+				$ids[] = $class_id;
+			}
+			$block['properties']['classesIds'] = $ids;
+			$style_ids                         = isset( $block['styleIds'] ) && is_array( $block['styleIds'] ) ? $block['styleIds'] : array();
+			foreach ( $style_ids as $style_id ) {
+				if ( empty( $styles[ $style_id ]['variant'] ) || ! is_array( $styles[ $style_id ]['variant'] ) ) {
+					continue;
+				}
+				foreach ( array_keys( $styles[ $style_id ]['variant'] ) as $variant ) {
+					$styles[ $style_id ]['variant'][ $variant ] = '';
+				}
+			}
+			return;
+		}
+		if ( ! empty( $field['classes'] ) ) {
+			throw new \InvalidArgumentException( 'A form field class was not applied. Create the global class first, then pass it by name.' );
+		}
 	}
 
 	/**
@@ -1258,11 +1296,28 @@ class Spec_Compiler {
 	 * @return string
 	 */
 	private static function option_value( $value ) {
+		if ( is_array( $value ) || is_object( $value ) || null === $value || is_bool( $value ) ) {
+			throw new \InvalidArgumentException( 'An option value must be text. Arrays and other non-text values are not accepted.' );
+		}
 		$value = self::plain_text( $value );
+		if ( false !== strpos( $value, "'" ) ) {
+			throw new \InvalidArgumentException( 'An option value cannot contain an apostrophe. Kirki prints the value inside single quotes with no escaping.' );
+		}
 		if ( ! preg_match( '/^[A-Za-z0-9 _.,:@+\/-]{1,100}$/', $value ) ) {
 			throw new \InvalidArgumentException( 'An option value may only contain letters, numbers, spaces, and . , : @ + / -. Quotes and markup are not allowed.' );
 		}
 		return $value;
+	}
+
+	/**
+	 * Form names are printed through wp_json_encode into HTML, which does not escape quotes.
+	 *
+	 * @param mixed $name Raw name.
+	 * @return string
+	 */
+	private static function form_name( $name ) {
+		$safe = self::safe_label( $name );
+		return '' === $safe ? 'Contact' : $safe;
 	}
 
 	/**

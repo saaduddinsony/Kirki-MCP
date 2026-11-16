@@ -7,6 +7,8 @@
 
 use KirkiMCP\Css;
 use KirkiMCP\Document;
+use KirkiMCP\Global_Repository;
+use KirkiMCP\Json_Data;
 use KirkiMCP\Page_Repository;
 use KirkiMCP\Spec_Compiler;
 use KirkiMCP\Symbol_Repository;
@@ -179,7 +181,7 @@ class FixesTest extends TestCase {
 				),
 			)
 		);
-		$section = $document->blocks['body']['children'][0];
+		$section  = $document->blocks['body']['children'][0];
 		$this->assertSame( 'damex-digital', $document->blocks[ $section ]['title'] );
 		$heading = $document->blocks[ $section ]['children'][0];
 		$css     = $document->styles[ $document->blocks[ $heading ]['styleIds'][0] ]['variant']['md'];
@@ -303,8 +305,8 @@ class FixesTest extends TestCase {
 				),
 			)
 		);
-		$form   = '';
-		$submit = 0;
+		$form     = '';
+		$submit   = 0;
 		foreach ( $document->blocks as $id => $block ) {
 			if ( 'form' === $block['name'] ) {
 				$form = $id;
@@ -349,9 +351,9 @@ class FixesTest extends TestCase {
 				),
 			)
 		);
-		$section = $document->blocks['body']['children'][0];
-		$heading = $document->blocks[ $section ]['children'][0];
-		$style   = $document->blocks[ $heading ]['styleIds'][0];
+		$section  = $document->blocks['body']['children'][0];
+		$heading  = $document->blocks[ $section ]['children'][0];
+		$style    = $document->blocks[ $heading ]['styleIds'][0];
 		$this->assertStringContainsString( 'font-size:16px', $document->styles[ $style ]['variant']['md'] );
 		$document->set_class_ids( $heading, array( 't-display' ) );
 		$this->assertStringNotContainsString( 'font-size:16px', $document->styles[ $style ]['variant']['md'] );
@@ -369,7 +371,7 @@ class FixesTest extends TestCase {
 				),
 			)
 		);
-		$section = $document->blocks['body']['children'][0];
+		$section  = $document->blocks['body']['children'][0];
 		$this->assertStringNotContainsString( '"', $document->blocks[ $section ]['title'] );
 		$this->assertStringNotContainsString( '/', $document->blocks[ $section ]['title'] );
 		$this->assertStringNotContainsString( '=', $document->blocks[ $section ]['title'] );
@@ -389,8 +391,8 @@ class FixesTest extends TestCase {
 				array( 'title' => 'Card' ),
 			)
 		);
-		$first  = $document->blocks['body']['children'][0];
-		$second = $document->blocks['body']['children'][1];
+		$first    = $document->blocks['body']['children'][0];
+		$second   = $document->blocks['body']['children'][1];
 		$this->assertSame( 'Card', $document->blocks[ $first ]['title'] );
 		$this->assertSame( 'Card', $document->blocks[ $second ]['title'] );
 	}
@@ -483,7 +485,7 @@ class FixesTest extends TestCase {
 				),
 			)
 		);
-		$link = '';
+		$link     = '';
 		foreach ( $document->blocks as $id => $block ) {
 			if ( 'link-text' === $block['name'] ) {
 				$link = $id;
@@ -513,15 +515,15 @@ class FixesTest extends TestCase {
 	 * Saving slugs a section title that was stored before the input check existed.
 	 */
 	public function test_stored_section_titles_are_slugged_on_clean() {
-		$payload  = 'x"/tabindex="1"/autofocus/onfocus="alert(document.domain)';
-		$document = Document::from_sections(
+		$payload                               = 'x"/tabindex="1"/autofocus/onfocus="alert(document.domain)';
+		$document                              = Document::from_sections(
 			array(
 				array(
 					'title' => 'Card',
 				),
 			)
 		);
-		$section                           = $document->blocks['body']['children'][0];
+		$section                               = $document->blocks['body']['children'][0];
 		$document->blocks[ $section ]['title'] = $payload;
 		$document->sanitize_stored_titles();
 		$this->assertStringNotContainsString( '"', $document->blocks[ $section ]['title'] );
@@ -567,7 +569,7 @@ class FixesTest extends TestCase {
 				),
 			)
 		);
-		$section = $document->blocks['body']['children'][0];
+		$section  = $document->blocks['body']['children'][0];
 		$this->assertSame( 'section-1', $document->blocks[ $section ]['title'] );
 	}
 
@@ -653,7 +655,7 @@ class FixesTest extends TestCase {
 				),
 			)
 		);
-		$nav = null;
+		$nav      = null;
 		foreach ( $document->blocks as $block ) {
 			if ( 'navigation' === $block['name'] ) {
 				$nav = $block;
@@ -690,7 +692,7 @@ class FixesTest extends TestCase {
 	 * Forms show a success message and can include a select with a labelled control.
 	 */
 	public function test_form_success_message_and_select() {
-		$document = Document::from_sections(
+		$document    = Document::from_sections(
 			array(
 				array(
 					'elements' => array(
@@ -798,10 +800,10 @@ class FixesTest extends TestCase {
 								),
 							),
 						),
-					)
+					),
 				)
 			);
-			$labels = array();
+			$labels   = array();
 			$required = null;
 			foreach ( $document->blocks as $block ) {
 				if ( 'select' === $block['name'] && isset( $block['properties']['options']['list'] ) ) {
@@ -862,7 +864,7 @@ class FixesTest extends TestCase {
 				),
 			)
 		);
-		$ids = array();
+		$ids      = array();
 		foreach ( $document->blocks as $block ) {
 			if ( isset( $block['properties']['attributes']['id'] ) && isset( $block['properties']['attributes']['name'] ) && 'email' === $block['properties']['attributes']['name'] ) {
 				$ids[] = $block['properties']['attributes']['id'];
@@ -877,7 +879,7 @@ class FixesTest extends TestCase {
 	public function test_symbol_class_copy_refreshes() {
 		$updated = Symbol_Repository::refresh_class_copy(
 			array(
-				'data' => array(
+				'data'        => array(
 					'el' => array(
 						'properties' => array(
 							'classesIds' => array( 'class-1' ),
@@ -889,7 +891,10 @@ class FixesTest extends TestCase {
 				),
 			),
 			'class-1',
-			array( 'name' => 't-display', 'variant' => array( 'md' => 'font-size:64px;' ) )
+			array(
+				'name'    => 't-display',
+				'variant' => array( 'md' => 'font-size:64px;' ),
+			)
 		);
 		$this->assertSame( 't-display', $updated['styleBlocks']['class-1']['name'] );
 	}
@@ -909,6 +914,8 @@ class FixesTest extends TestCase {
 		$this->assertSame( 'draft', $custom['post_status'] );
 		$this->assertSame( 'New title', $custom['post_title'] );
 		$this->assertSame( 'my-slug', $custom['post_name'] );
+		$this->assertStringContainsString( 'caf', Page_Repository::slug_base( 'Café menu' ) );
+		$this->assertNotSame( 'page', Page_Repository::slug_base( 'বাংলা' ) );
 	}
 
 	/**
@@ -998,8 +1005,8 @@ class FixesTest extends TestCase {
 	public function test_header_symbol_class_copy_refreshes() {
 		$updated = Symbol_Repository::refresh_class_copy(
 			array(
-				'setAs' => 'header',
-				'data'  => array(
+				'setAs'       => 'header',
+				'data'        => array(
 					'nav' => array(
 						'properties' => array(
 							'classesIds' => array( 'class-1' ),
@@ -1011,7 +1018,11 @@ class FixesTest extends TestCase {
 				),
 			),
 			'class-1',
-			array( 'id' => 'class-1', 'name' => 'nav-link', 'variant' => array( 'md' => 'color:#111;' ) )
+			array(
+				'id'      => 'class-1',
+				'name'    => 'nav-link',
+				'variant' => array( 'md' => 'color:#111;' ),
+			)
 		);
 		$this->assertSame( 'header', $updated['setAs'] );
 		$this->assertSame( 'nav-link', $updated['styleBlocks']['class-1']['name'] );
@@ -1023,5 +1034,352 @@ class FixesTest extends TestCase {
 	public function test_style_media_value_is_restricted() {
 		$this->expectException( InvalidArgumentException::class );
 		Css::head_style_blocks( '<style media=\'a" onload="alert(1)\'>body{color:red}</style>' );
+	}
+
+	/**
+	 * esc_url_raw keeps apostrophes, and Kirki prints link hrefs inside single quotes.
+	 */
+	public function test_link_urls_cannot_break_single_quoted_hrefs() {
+		$payload = "https://example.com/'onmouseover='alert(document.domain)'style='position:fixed;inset:0";
+		$safe    = Css::url( $payload );
+		$this->assertStringNotContainsString( "'", $safe );
+		$this->assertStringNotContainsString( '"', $safe );
+		$this->assertStringNotContainsString( '`', $safe );
+		$this->assertStringNotContainsString( '<', $safe );
+		$this->assertStringNotContainsString( '>', $safe );
+		$this->assertStringContainsString( '%27', $safe );
+		$spaced = Css::url( 'https://example.com/a b' );
+		$this->assertStringNotContainsString( ' ', $spaced );
+		$again = Css::attribute_url( $safe );
+		$this->assertSame( $safe, $again );
+	}
+
+	/**
+	 * Section links cannot target a heading, nav item, or form label, and a renamed target is slugged.
+	 */
+	public function test_section_links_only_use_safe_targets() {
+		$payload  = "x' onfocus='alert(1)";
+		$document = Document::from_sections(
+			array(
+				array(
+					'elements' => array(
+						array(
+							'type'  => 'heading',
+							'tag'   => 'h1',
+							'title' => $payload,
+							'text'  => 'Hi',
+						),
+						array(
+							'type' => 'button',
+							'text' => 'Go',
+							'href' => 'https://example.com',
+						),
+						array(
+							'type'  => 'navigation',
+							'items' => array(
+								array(
+									'text' => $payload,
+									'href' => '/work',
+								),
+							),
+						),
+						array(
+							'type'   => 'form',
+							'email'  => 'hello@example.com',
+							'name'   => 'contact" onclick="alert(1)',
+							'fields' => array(
+								array(
+									'name'  => 'email',
+									'label' => $payload,
+									'type'  => 'email',
+								),
+							),
+						),
+					),
+				),
+			)
+		);
+		$button   = $this->first_block( $document, 'button' );
+		foreach ( array( 'heading', 'navigation-item', 'label' ) as $type ) {
+			$target = $this->first_block( $document, $type );
+			try {
+				$document->update_element( $button, array( 'section_id' => $target ) );
+				$this->fail( $type . ' was accepted as a section link.' );
+			} catch ( InvalidArgumentException $error ) {
+				$this->assertStringContainsString( 'section or an element with an anchor', $error->getMessage() );
+			}
+		}
+		$form = $this->first_block( $document, 'form' );
+		$this->assertStringNotContainsString( '"', $document->blocks[ $form ]['properties']['attributes']['name'] );
+
+		$anchored = Document::from_sections(
+			array(
+				array(
+					'elements' => array(
+						array(
+							'type' => 'heading',
+							'tag'  => 'h1',
+							'key'  => 'greet',
+							'text' => 'Hi',
+						),
+						array(
+							'type'     => 'button',
+							'text'     => 'Go',
+							'link_key' => 'greet',
+						),
+					),
+				),
+			)
+		);
+		$heading  = $anchored->keys['greet'];
+		$anchored->update_element( $heading, array( 'title' => $payload ) );
+		$this->assertStringNotContainsString( "'", $anchored->blocks[ $heading ]['title'] );
+	}
+
+	/**
+	 * An apostrophe is a clear error, and a non-string does not become the word Array.
+	 */
+	public function test_option_apostrophe_and_non_string_are_rejected() {
+		try {
+			Document::from_sections(
+				array(
+					array(
+						'elements' => array(
+							array(
+								'type'   => 'form',
+								'email'  => 'hello@example.com',
+								'fields' => array(
+									array(
+										'name'    => 'who',
+										'label'   => 'Who',
+										'type'    => 'select',
+										'options' => array( "O'Brien" ),
+									),
+								),
+							),
+						),
+					),
+				)
+			);
+			$this->fail( 'An apostrophe was accepted.' );
+		} catch ( InvalidArgumentException $error ) {
+			$this->assertStringContainsString( 'apostrophe', $error->getMessage() );
+		}
+		try {
+			Document::from_sections(
+				array(
+					array(
+						'elements' => array(
+							array(
+								'type'   => 'form',
+								'email'  => 'hello@example.com',
+								'fields' => array(
+									array(
+										'name'    => 'who',
+										'label'   => 'Who',
+										'type'    => 'select',
+										'options' => array(
+											array(
+												'value' => array( 'nested' ),
+												'label' => 'Nested',
+											),
+										),
+									),
+								),
+							),
+						),
+					),
+				)
+			);
+			$this->fail( 'An array option value was accepted.' );
+		} catch ( InvalidArgumentException $error ) {
+			$this->assertStringContainsString( 'must be text', $error->getMessage() );
+		}
+	}
+
+	/**
+	 * Form field classes are stored on the control.
+	 */
+	public function test_form_field_classes_are_applied() {
+		$document = Document::from_sections(
+			array(
+				array(
+					'elements' => array(
+						array(
+							'type'   => 'form',
+							'email'  => 'hello@example.com',
+							'fields' => array(
+								array(
+									'name'      => 'email',
+									'label'     => 'Email',
+									'type'      => 'email',
+									'class_ids' => array( 'class-9' ),
+								),
+							),
+						),
+					),
+				),
+			)
+		);
+		$field    = $this->first_block( $document, 'input' );
+		$this->assertSame( array( 'class-9' ), $document->blocks[ $field ]['properties']['classesIds'] );
+		try {
+			Document::from_sections(
+				array(
+					array(
+						'elements' => array(
+							array(
+								'type'   => 'form',
+								'email'  => 'hello@example.com',
+								'fields' => array(
+									array(
+										'name'    => 'email',
+										'label'   => 'Email',
+										'type'    => 'email',
+										'classes' => array( 'not-resolved' ),
+									),
+								),
+							),
+						),
+					),
+				)
+			);
+			$this->fail( 'An unresolved form field class was ignored.' );
+		} catch ( InvalidArgumentException $error ) {
+			$this->assertStringContainsString( 'was not applied', $error->getMessage() );
+		}
+	}
+
+	/**
+	 * Two symbols rendered in one request no longer share an HTML id.
+	 */
+	public function test_two_symbols_on_one_page_have_different_ids() {
+		$shared = array(
+			'name' => 'Makerspace header',
+			'root' => 'root',
+			'data' => array(
+				'root'  => array(
+					'id'       => 'root',
+					'name'     => 'section',
+					'title'    => 'Makerspace header',
+					'children' => array( 'child' ),
+				),
+				'child' => array(
+					'id'       => 'child',
+					'name'     => 'paragraph',
+					'title'    => 'Copy',
+					'parentId' => 'root',
+				),
+			),
+		);
+		$same   = Symbol_Repository::page_section_ids( array( $shared, $shared ) );
+		$this->assertSame( $same[0], $same[1] );
+		$header = Symbol_Repository::rekey_root( $shared, 19 );
+		$footer = Symbol_Repository::rekey_root( $shared, 20 );
+		$ids    = Symbol_Repository::page_section_ids( array( $header, $footer ) );
+		$this->assertNotSame( $ids[0], $ids[1] );
+		$this->assertSame( 'root-19', $header['root'] );
+		$this->assertSame( 'root-20', $footer['data']['root-20']['id'] );
+		$this->assertSame( 'root-20', $footer['data']['child']['parentId'] );
+		$this->assertArrayNotHasKey( 'root', $footer['data'] );
+	}
+
+	/**
+	 * Kirki editor symbols are not rewritten unless a caller names them.
+	 */
+	public function test_symbol_migration_skips_editor_symbols() {
+		$editor = array(
+			'name' => 'Mine',
+			'root' => 'root',
+			'data' => array(
+				'root' => array( 'title' => 'Mine' ),
+			),
+		);
+		$this->assertFalse( Symbol_Repository::should_migrate_symbol( $editor, 4, false ) );
+		$this->assertTrue( Symbol_Repository::should_migrate_symbol( array( 'kirkiMcp' => 1 ), 4, false ) );
+		$stamped                          = $editor;
+		$stamped['data']['root']['title'] = Symbol_Repository::root_html_id( 'Mine', 4 );
+		$this->assertTrue( Symbol_Repository::should_migrate_symbol( $stamped, 4, false ) );
+		$this->assertTrue( Symbol_Repository::should_migrate_symbol( $editor, 4, true ) );
+		try {
+			Symbol_Repository::migrate_one( 4, (object) array( 'root' => 'root' ), true );
+			$this->fail( 'A PHP object was loaded.' );
+		} catch ( InvalidArgumentException $error ) {
+			$this->assertStringContainsString( 'PHP object', $error->getMessage() );
+		}
+	}
+
+	/**
+	 * A symbol anchor that a page already uses is a collision.
+	 */
+	public function test_symbol_anchors_collide_with_page_anchors() {
+		$ids = Symbol_Repository::anchor_ids_in_blocks(
+			array(
+				'hero' => array(
+					'name'  => 'section',
+					'title' => 'Hero',
+				),
+			)
+		);
+		$this->assertSame( 'hero', Symbol_Repository::first_id_collision( array( 'hero' ), $ids ) );
+	}
+
+	/**
+	 * symbol_id must be a symbol post.
+	 */
+	public function test_symbol_id_rejects_other_post_types() {
+		$this->expectException( InvalidArgumentException::class );
+		Symbol_Repository::assert_symbol_post( (object) array( 'post_type' => 'page' ) );
+	}
+
+	/**
+	 * Meta writes keep backslashes that WordPress would otherwise strip.
+	 */
+	public function test_meta_writes_keep_backslashes() {
+		$original = 'content:"\\2014"';
+		$stored   = Json_Data::slash( $original );
+		$this->assertNotSame( $original, $stored );
+		$this->assertSame( $original, stripslashes( $stored ) );
+	}
+
+	/**
+	 * One class update writes a bounded batch, with header and footer first.
+	 */
+	public function test_symbol_class_refresh_is_batched() {
+		$plan = Global_Repository::refresh_plan( range( 1, 45 ), 0 );
+		$this->assertCount( Global_Repository::REFRESH_BATCH, $plan['ids'] );
+		$this->assertFalse( $plan['done'] );
+		$order = Global_Repository::refresh_order(
+			array(
+				array(
+					'id'     => 3,
+					'set_as' => '',
+				),
+				array(
+					'id'     => 1,
+					'set_as' => 'header',
+				),
+				array(
+					'id'     => 2,
+					'set_as' => 'footer',
+				),
+			)
+		);
+		$this->assertSame( array( 1, 2, 3 ), $order );
+	}
+
+	/**
+	 * @param Document $document Document.
+	 * @param string   $name Element name.
+	 * @return string
+	 */
+	private function first_block( Document $document, $name ) {
+		foreach ( $document->blocks as $id => $block ) {
+			if ( isset( $block['name'] ) && $name === $block['name'] ) {
+				return (string) $id;
+			}
+		}
+		$this->fail( 'Missing ' . $name );
+		return '';
 	}
 }

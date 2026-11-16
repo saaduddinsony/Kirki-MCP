@@ -98,6 +98,7 @@ class Document {
 		$compiled = Spec_Compiler::compile_sections( $sections );
 		$doc->merge_compiled( $compiled, 'body', null, true );
 		$doc->assert_unique_anchors();
+		$doc->assert_section_links();
 		return $doc;
 	}
 
@@ -160,6 +161,7 @@ class Document {
 		$compiled = Spec_Compiler::compile_sections( array( $section ) );
 		$this->merge_compiled( $compiled, 'body', $index, false );
 		$this->assert_unique_anchors();
+		$this->assert_section_links();
 		return $compiled;
 	}
 
@@ -182,6 +184,7 @@ class Document {
 		$this->absorb( $compiled['blocks'], $compiled['styles'], $compiled['keys'] );
 		$this->insert_child( $parent_id, $compiled['root_id'], $index );
 		$this->assert_unique_anchors();
+		$this->assert_section_links();
 		return $compiled;
 	}
 
@@ -224,7 +227,7 @@ class Document {
 
 		if ( ! empty( $changes['section_id'] ) ) {
 			$section_id = (string) $changes['section_id'];
-			$this->assert_exists( $section_id );
+			$this->assert_href_target( $section_id );
 			$this->set_href( $block, $section_id, 'section' );
 		}
 
@@ -265,12 +268,12 @@ class Document {
 		}
 
 		if ( ! empty( $changes['title'] ) ) {
-			if ( 'section' === $type ) {
+			if ( $this->title_feeds_href( $id, $block ) ) {
 				$block['title'] = Spec_Compiler::safe_label( $changes['title'] );
 				if ( '' === $block['title'] ) {
 					throw new \InvalidArgumentException( 'The title is empty after removing characters that cannot be used in an HTML id.' );
 				}
-				if ( ! empty( $block['properties']['explicitAnchor'] ) ) {
+				if ( 'section' === $type && ! empty( $block['properties']['explicitAnchor'] ) ) {
 					$block['properties']['explicitAnchor'] = Spec_Compiler::anchor_slug( $block['title'] );
 				}
 				$this->assert_unique_anchors();
@@ -430,28 +433,89 @@ class Document {
 	 * @return int How many titles changed.
 	 */
 	public function sanitize_stored_titles() {
-		$changed  = 0;
-		$fallback = 0;
-		foreach ( $this->blocks as $id => $block ) {
-			if ( ! isset( $block['name'] ) || 'section' !== $block['name'] ) {
+		$before       = $this->blocks;
+		$this->blocks = self::harden_blocks( $this->blocks );
+		return $this->blocks === $before ? 0 : 1;
+	}
+
+	/**
+	 * Make stored blocks safe for the attributes Kirki prints raw.
+	 *
+	 * Section-link targets and anchored titles go through safe_label. Link
+	 * URLs lose quotes and whitespace. Form names lose characters that break
+	 * out of wp_json_encode in HTML.
+	 *
+	 * @param array $blocks Element map.
+	 * @return array
+	 */
+	public static function harden_blocks( array $blocks ) {
+		$targets = array();
+		foreach ( $blocks as $block ) {
+			if ( ! is_array( $block ) ) {
 				continue;
 			}
-			$raw  = isset( $block['title'] ) ? (string) $block['title'] : '';
-			$safe = Spec_Compiler::safe_label( $raw );
-			if ( '' === $safe ) {
-				++$fallback;
-				$safe = 'section-' . $fallback;
-			}
-			if ( $safe === $raw ) {
+			$type = isset( $block['properties']['type'] ) ? $block['properties']['type'] : '';
+			if ( 'section' !== $type ) {
 				continue;
 			}
-			$this->blocks[ $id ]['title'] = $safe;
-			if ( ! empty( $block['properties']['explicitAnchor'] ) ) {
-				$this->blocks[ $id ]['properties']['explicitAnchor'] = Spec_Compiler::anchor_slug( $safe );
+			$href = isset( $block['properties']['attributes']['href'] ) ? $block['properties']['attributes']['href'] : '';
+			if ( is_string( $href ) && isset( $blocks[ $href ] ) ) {
+				$targets[ $href ] = true;
 			}
-			++$changed;
 		}
-		return $changed;
+
+		foreach ( $blocks as $id => $block ) {
+			if ( ! is_array( $block ) ) {
+				continue;
+			}
+			$link_type = isset( $block['properties']['type'] ) ? $block['properties']['type'] : '';
+			if ( isset( $block['properties']['attributes'] ) && is_array( $block['properties']['attributes'] ) ) {
+				foreach ( array( 'href', 'src' ) as $field ) {
+					if ( ! isset( $block['properties']['attributes'][ $field ] ) || ! is_string( $block['properties']['attributes'][ $field ] ) ) {
+						continue;
+					}
+					if ( 'href' === $field && 'section' === $link_type ) {
+						continue;
+					}
+					$blocks[ $id ]['properties']['attributes'][ $field ] = Css::attribute_url( $block['properties']['attributes'][ $field ] );
+				}
+				if ( isset( $block['name'] ) && 'form' === $block['name'] && isset( $block['properties']['attributes']['name'] ) ) {
+					$safe = Spec_Compiler::safe_label( $block['properties']['attributes']['name'] );
+					$blocks[ $id ]['properties']['attributes']['name'] = '' === $safe ? 'Contact' : $safe;
+				}
+			}
+			$anchored = ! empty( $block['properties']['explicitAnchor'] ) || ! empty( $block['properties']['customAttributes']['id'] );
+			$feeds    = ( isset( $block['name'] ) && 'section' === $block['name'] ) || $anchored || isset( $targets[ $id ] );
+			if ( $feeds && isset( $block['title'] ) ) {
+				$safe = Spec_Compiler::safe_label( $block['title'] );
+				if ( '' === $safe && isset( $block['name'] ) && 'section' === $block['name'] ) {
+					$safe = 'section';
+				}
+				if ( '' !== $safe ) {
+					$blocks[ $id ]['title'] = $safe;
+					if ( ! empty( $block['properties']['explicitAnchor'] ) ) {
+						$blocks[ $id ]['properties']['explicitAnchor'] = Spec_Compiler::anchor_slug( $safe );
+					}
+				}
+			}
+		}
+		return $blocks;
+	}
+
+	/**
+	 * Page or symbol meta, with the same hardening as a save.
+	 *
+	 * @param array $meta kirki meta.
+	 * @return array
+	 */
+	public static function harden_kirki_meta( array $meta ) {
+		if ( isset( $meta['blocks'] ) && is_array( $meta['blocks'] ) ) {
+			$meta['blocks'] = self::harden_blocks( $meta['blocks'] );
+		}
+		if ( isset( $meta['data'] ) && is_array( $meta['data'] ) ) {
+			$meta['data'] = self::harden_blocks( $meta['data'] );
+		}
+		return $meta;
 	}
 
 	/**
@@ -800,11 +864,93 @@ class Document {
 		if ( ! in_array( $block['name'], array( 'button', 'link-block', 'link-text' ), true ) ) {
 			throw new \InvalidArgumentException( 'Links can be set on a button, a link-block, or a link-text element.' );
 		}
+		if ( 'section' === $type ) {
+			$this->assert_href_target( $href );
+		}
 		if ( ! isset( $block['properties']['attributes'] ) || ! is_array( $block['properties']['attributes'] ) ) {
 			$block['properties']['attributes'] = array();
 		}
 		$block['properties']['type']               = $type;
 		$block['properties']['attributes']['href'] = $href;
+	}
+
+	/**
+	 * Reject a section link whose target is not a section or an anchored element.
+	 *
+	 * Kirki builds that href from the target's title with no escaping.
+	 *
+	 * @return void
+	 */
+	public function assert_section_links() {
+		foreach ( $this->blocks as $block ) {
+			if ( ! is_array( $block ) ) {
+				continue;
+			}
+			$type = isset( $block['properties']['type'] ) ? $block['properties']['type'] : '';
+			if ( 'section' !== $type ) {
+				continue;
+			}
+			$href = isset( $block['properties']['attributes']['href'] ) ? (string) $block['properties']['attributes']['href'] : '';
+			if ( '' === $href ) {
+				continue;
+			}
+			$this->assert_href_target( $href );
+		}
+	}
+
+	/**
+	 * @param string $id Target element id.
+	 * @return void
+	 */
+	public function assert_href_target( $id ) {
+		$this->assert_exists( $id );
+		if ( ! $this->can_be_section_target( $this->blocks[ $id ] ) ) {
+			throw new \InvalidArgumentException( 'A section link can only point at a section or an element with an anchor.' );
+		}
+	}
+
+	/**
+	 * @param string $id Element id.
+	 * @param array  $block Element.
+	 * @return bool
+	 */
+	private function title_feeds_href( $id, array $block ) {
+		if ( isset( $block['name'] ) && 'section' === $block['name'] ) {
+			return true;
+		}
+		if ( '' !== $this->explicit_anchor( $block ) ) {
+			return true;
+		}
+		return $this->is_section_link_target( $id );
+	}
+
+	/**
+	 * @param string $id Element id.
+	 * @return bool
+	 */
+	private function is_section_link_target( $id ) {
+		foreach ( $this->blocks as $block ) {
+			if ( ! is_array( $block ) ) {
+				continue;
+			}
+			$type = isset( $block['properties']['type'] ) ? $block['properties']['type'] : '';
+			$href = isset( $block['properties']['attributes']['href'] ) ? $block['properties']['attributes']['href'] : '';
+			if ( 'section' === $type && (string) $href === (string) $id ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * @param array $block Element.
+	 * @return bool
+	 */
+	private function can_be_section_target( array $block ) {
+		if ( isset( $block['name'] ) && 'section' === $block['name'] ) {
+			return true;
+		}
+		return '' !== $this->explicit_anchor( $block );
 	}
 
 	/**
