@@ -431,69 +431,105 @@ class Document {
 	public function sanitize_stored_titles() {
 		$before       = $this->blocks;
 		$this->blocks = self::harden_blocks( $this->blocks );
-		$this->blocks = self::neutralize_breakout_titles( $this->blocks );
 		return $this->blocks === $before ? 0 : 1;
 	}
 
 	/**
-	 * Encode link URLs Kirki prints raw. Titles and anchors are left as stored.
+	 * Remove only the characters that break out of a quoted HTML attribute.
+	 *
+	 * Spaces stay, so a title remains readable. Tabs and newlines become a space.
+	 * Unicode is kept.
+	 *
+	 * @param mixed $text Raw title or anchor.
+	 * @return string
+	 */
+	public static function strip_breakout( $text ) {
+		$text = str_replace( array( '"', "'", '`', '<', '>' ), '', (string) $text );
+		$text = preg_replace( '/[\t\n\r\f\v]+/', ' ', $text );
+		$text = preg_replace( '/ {2,}/', ' ', (string) $text );
+		return trim( (string) $text );
+	}
+
+	/**
+	 * Whether a stored string can break out of an attribute Kirki prints raw.
+	 *
+	 * @param mixed $text Raw text.
+	 * @return bool
+	 */
+	public static function has_breakout( $text ) {
+		return self::strip_breakout( $text ) !== (string) $text;
+	}
+
+	/**
+	 * Element ids whose titles Kirki copies into an id or a section-link href.
+	 *
+	 * @param array $blocks Element map.
+	 * @return array<string,bool>
+	 */
+	public static function attribute_title_ids( array $blocks ) {
+		$ids = array();
+		foreach ( $blocks as $id => $block ) {
+			if ( ! is_array( $block ) ) {
+				continue;
+			}
+			$name = isset( $block['name'] ) ? $block['name'] : '';
+			if ( 'section' === $name || 'heading' === $name ) {
+				$ids[ (string) $id ] = true;
+			}
+			$type = isset( $block['properties']['type'] ) ? $block['properties']['type'] : '';
+			$href = isset( $block['properties']['attributes']['href'] ) ? $block['properties']['attributes']['href'] : '';
+			if ( 'section' === $type && is_string( $href ) && '' !== $href ) {
+				$ids[ $href ] = true;
+			}
+		}
+		return $ids;
+	}
+
+	/**
+	 * Encode link URLs and strip breakout characters from titles Kirki prints into attributes.
 	 *
 	 * @param array $blocks Element map.
 	 * @return array
 	 */
 	public static function harden_blocks( array $blocks ) {
+		$titles = self::attribute_title_ids( $blocks );
 		foreach ( $blocks as $id => $block ) {
 			if ( ! is_array( $block ) ) {
 				continue;
 			}
 			$link_type = isset( $block['properties']['type'] ) ? $block['properties']['type'] : '';
-			if ( ! isset( $block['properties']['attributes'] ) || ! is_array( $block['properties']['attributes'] ) ) {
-				continue;
-			}
-			foreach ( array( 'href', 'src' ) as $field ) {
-				if ( ! isset( $block['properties']['attributes'][ $field ] ) || ! is_string( $block['properties']['attributes'][ $field ] ) ) {
-					continue;
+			if ( isset( $block['properties']['attributes'] ) && is_array( $block['properties']['attributes'] ) ) {
+				foreach ( array( 'href', 'src' ) as $field ) {
+					if ( ! isset( $block['properties']['attributes'][ $field ] ) || ! is_string( $block['properties']['attributes'][ $field ] ) ) {
+						continue;
+					}
+					if ( 'href' === $field && 'section' === $link_type ) {
+						continue;
+					}
+					$blocks[ $id ]['properties']['attributes'][ $field ] = Css::attribute_url( $block['properties']['attributes'][ $field ] );
 				}
-				if ( 'href' === $field && 'section' === $link_type ) {
-					continue;
-				}
-				$blocks[ $id ]['properties']['attributes'][ $field ] = Css::attribute_url( $block['properties']['attributes'][ $field ] );
-			}
-			if ( isset( $block['name'] ) && 'form' === $block['name'] && isset( $block['properties']['attributes']['name'] ) && is_string( $block['properties']['attributes']['name'] ) ) {
-				$name = $block['properties']['attributes']['name'];
-				if ( preg_match( '/["<>`]/', $name ) ) {
-					$safe = Spec_Compiler::safe_label( $name );
-					$blocks[ $id ]['properties']['attributes']['name'] = '' === $safe ? 'Contact' : $safe;
+				if ( isset( $block['name'] ) && 'form' === $block['name'] && isset( $block['properties']['attributes']['name'] ) && is_string( $block['properties']['attributes']['name'] ) ) {
+					$name = $block['properties']['attributes']['name'];
+					if ( self::has_breakout( $name ) ) {
+						$safe = self::strip_breakout( $name );
+						$blocks[ $id ]['properties']['attributes']['name'] = '' === $safe ? 'Contact' : $safe;
+					}
 				}
 			}
-		}
-		return $blocks;
-	}
-
-	/**
-	 * Slug a section title only when it can break out of id="...".
-	 *
-	 * Apostrophes and non-Latin titles stay. "Who We're" and a Bangla title are not rewritten.
-	 *
-	 * @param array $blocks Element map.
-	 * @return array
-	 */
-	public static function neutralize_breakout_titles( array $blocks ) {
-		foreach ( $blocks as $id => $block ) {
-			if ( ! is_array( $block ) || ! isset( $block['name'] ) || 'section' !== $block['name'] || ! isset( $block['title'] ) ) {
-				continue;
+			if ( isset( $titles[ (string) $id ] ) && isset( $block['title'] ) ) {
+				$safe = self::strip_breakout( $block['title'] );
+				if ( '' === $safe && isset( $block['name'] ) && 'section' === $block['name'] ) {
+					$safe = 'section';
+				}
+				if ( '' !== $safe ) {
+					$blocks[ $id ]['title'] = $safe;
+				}
 			}
-			$title = (string) $block['title'];
-			if ( ! preg_match( '/["<>\\\\\/]/', $title ) ) {
-				continue;
+			if ( ! empty( $block['properties']['explicitAnchor'] ) && is_string( $block['properties']['explicitAnchor'] ) ) {
+				$blocks[ $id ]['properties']['explicitAnchor'] = self::strip_breakout( $block['properties']['explicitAnchor'] );
 			}
-			$safe = Spec_Compiler::safe_label( $title );
-			if ( '' === $safe ) {
-				$safe = 'section';
-			}
-			$blocks[ $id ]['title'] = $safe;
-			if ( ! empty( $block['properties']['explicitAnchor'] ) ) {
-				$blocks[ $id ]['properties']['explicitAnchor'] = Spec_Compiler::anchor_slug( $safe );
+			if ( ! empty( $block['properties']['customAttributes']['id'] ) && is_string( $block['properties']['customAttributes']['id'] ) ) {
+				$blocks[ $id ]['properties']['customAttributes']['id'] = self::strip_breakout( $block['properties']['customAttributes']['id'] );
 			}
 		}
 		return $blocks;
@@ -552,20 +588,21 @@ class Document {
 	 * @return array
 	 */
 	public function unsafe_titles() {
-		$found = array();
+		$found  = array();
+		$titles = self::attribute_title_ids( $this->blocks );
 		foreach ( $this->blocks as $id => $block ) {
-			if ( ! isset( $block['name'] ) || 'section' !== $block['name'] ) {
+			if ( ! is_array( $block ) || ! isset( $titles[ (string) $id ] ) ) {
 				continue;
 			}
 			$title = isset( $block['title'] ) ? (string) $block['title'] : '';
-			$safe  = Spec_Compiler::safe_label( $title );
-			if ( $title === $safe ) {
+			if ( ! self::has_breakout( $title ) ) {
 				continue;
 			}
 			$found[] = array(
 				'id'         => (string) $id,
+				'name'       => isset( $block['name'] ) ? (string) $block['name'] : '',
 				'title'      => $title,
-				'safe_title' => $safe,
+				'safe_title' => self::strip_breakout( $title ),
 			);
 		}
 		return $found;

@@ -494,23 +494,19 @@ class Page_Repository {
 	 * @return string[]
 	 */
 	public static function duplicate_meta_keys( array $source_keys ) {
-		$skip = array(
-			'kirki',
-			'kirki_global_style_block_random',
-			'kirki_used_style_block_ids',
-			'kirki_used_style_block_ids_random',
-			'kirki_editor_mode',
+		$allow = array(
+			'kirki_page_seo_settings',
+			'kirki_page_custom_code',
+			'kirki_disabled_page_symbols',
+			'kirki_variable_mode',
+			'kirki_used_font_list',
+			'_wp_page_template',
 		);
-		$keys = array();
+		$keys  = array();
 		foreach ( $source_keys as $key ) {
-			$key = (string) $key;
-			if ( '_wp_page_template' !== $key && 0 !== strpos( $key, 'kirki_' ) ) {
-				continue;
+			if ( in_array( (string) $key, $allow, true ) ) {
+				$keys[] = (string) $key;
 			}
-			if ( in_array( $key, $skip, true ) ) {
-				continue;
-			}
-			$keys[] = $key;
 		}
 		return $keys;
 	}
@@ -592,11 +588,7 @@ class Page_Repository {
 				foreach ( $posts as $post_id ) {
 					$post_id = (int) $post_id;
 					try {
-						$raw  = Plugin::read_raw_post_meta( $post_id, 'kirki' );
-						$next = Document::persistable_meta( $raw );
-						if ( null !== $next ) {
-							Plugin::write_raw_post_meta( $post_id, 'kirki', $next );
-						}
+						self::rewrite_kirki_meta( $post_id );
 						self::migrate_stage_urls( $post_id );
 					} catch ( \Throwable $error ) {
 						error_log( 'Kirki MCP URL migration skipped ' . $post_id . ': ' . $error->getMessage() ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
@@ -608,6 +600,30 @@ class Page_Repository {
 		}
 		if ( function_exists( 'update_option' ) ) {
 			update_option( 'kirki_mcp_stored_urls', '1' );
+		}
+	}
+
+	/**
+	 * Read the raw row, harden it, and write it back. A second pass picks up an editor save that landed in between.
+	 *
+	 * @param int $post_id Post id.
+	 * @return void
+	 */
+	private static function rewrite_kirki_meta( $post_id ) {
+		for ( $pass = 0; $pass < 2; $pass++ ) {
+			$raw  = Plugin::read_raw_post_meta( $post_id, 'kirki' );
+			$next = Document::persistable_meta( $raw );
+			if ( null === $next ) {
+				return;
+			}
+			$latest = Plugin::read_raw_post_meta( $post_id, 'kirki' );
+			if ( $latest !== $raw ) {
+				$next = Document::persistable_meta( $latest );
+				if ( null === $next ) {
+					return;
+				}
+			}
+			Plugin::write_raw_post_meta( $post_id, 'kirki', $next );
 		}
 	}
 
@@ -632,12 +648,15 @@ class Page_Repository {
 			if ( ! is_array( $version ) || empty( $version['version'] ) ) {
 				continue;
 			}
-			$raw  = \Kirki\App\Supports\Facades\Page::read_page_meta( (int) $page_id, 'kirki', (int) $version['version'], array() );
-			$next = Document::stage_migration_payload( $version, $raw );
+			$version_id = (int) $version['version'];
+			$raw        = \Kirki\App\Supports\Facades\Page::read_page_meta( (int) $page_id, 'kirki', $version_id, array() );
+			$latest     = \Kirki\App\Supports\Facades\Page::read_page_meta( (int) $page_id, 'kirki', $version_id, array() );
+			$basis      = $latest !== $raw ? $latest : $raw;
+			$next       = Document::stage_migration_payload( $version, $basis );
 			if ( null === $next ) {
 				continue;
 			}
-			\Kirki\App\Supports\Facades\Page::save_blocks( (int) $page_id, $next, (int) $version['version'] );
+			\Kirki\App\Supports\Facades\Page::save_blocks( (int) $page_id, $next, $version_id );
 		}
 	}
 
@@ -687,7 +706,11 @@ class Page_Repository {
 				continue;
 			}
 			try {
-				$loaded = self::load( $page_id );
+				$raw    = Plugin::read_raw_post_meta( $page_id, 'kirki' );
+				$styles = Plugin::read_raw_post_meta( $page_id, 'kirki_global_style_block_random' );
+				$loaded = array(
+					'document' => Document::from_stored( $raw, is_array( $styles ) ? $styles : array() ),
+				);
 			} catch ( \Throwable $error ) {
 				$pages[] = array(
 					'id'       => (int) $page_id,

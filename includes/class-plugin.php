@@ -79,16 +79,57 @@ class Plugin {
 		if ( ! $allowed ) {
 			return;
 		}
-		self::run_migrations();
-		update_option( 'kirki_mcp_version', KIRKI_MCP_VERSION );
+		if ( self::run_migrations() ) {
+			update_option( 'kirki_mcp_version', KIRKI_MCP_VERSION );
+		}
+	}
+
+	/**
+	 * @return bool Whether this request finished the migration.
+	 */
+	public static function run_migrations() {
+		if ( ! self::claim_migration_lock() ) {
+			return false;
+		}
+		try {
+			if ( function_exists( 'get_option' ) && KIRKI_MCP_VERSION === (string) get_option( 'kirki_mcp_version', '' ) ) {
+				return true;
+			}
+			Symbol_Repository::migrate_plugin_symbols();
+			Page_Repository::migrate_stored_urls();
+			return true;
+		} finally {
+			self::release_migration_lock();
+		}
+	}
+
+	/**
+	 * @return bool
+	 */
+	private static function claim_migration_lock() {
+		if ( ! function_exists( 'add_option' ) ) {
+			return true;
+		}
+		$now   = time();
+		$added = add_option( 'kirki_mcp_migration_lock', (string) $now, '', false );
+		$held  = (int) get_option( 'kirki_mcp_migration_lock', 0 );
+		$which = Global_Repository::refresh_lock_decision( (bool) $added, $held, $now );
+		if ( 'busy' === $which ) {
+			return false;
+		}
+		if ( 'stolen' === $which ) {
+			update_option( 'kirki_mcp_migration_lock', (string) $now, false );
+		}
+		return true;
 	}
 
 	/**
 	 * @return void
 	 */
-	public static function run_migrations() {
-		Symbol_Repository::migrate_plugin_symbols();
-		Page_Repository::migrate_stored_urls();
+	private static function release_migration_lock() {
+		if ( function_exists( 'delete_option' ) ) {
+			delete_option( 'kirki_mcp_migration_lock' );
+		}
 	}
 
 	/**

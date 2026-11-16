@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.9
+
+- Stored titles that Kirki prints into an id or a section-link href lose only `"`, `'`, `` ` ``, `<`, and `>`. Tabs and newlines become a space. Unicode and the rest of the title stay. The read filter, the saved post meta, unpublished stages, and symbols all get that pass, including a heading a link points at. A later save no longer leaves that heading dirty.
+- `audit-unsafe-titles` reports sections, headings, and other section-link targets, read from the raw stored meta.
+- A symbol that was already re-keyed still has a section link pointing at `root` updated to `root-{post id}`.
+- `duplicate-page` copies an allow-list of page meta: SEO, custom code, disabled symbols, variable mode, used fonts, and the page template.
+- A Kirki symbol is not treated as ours unless its root style is exactly the rule this plugin writes.
+- The migration takes a lock and re-reads each row before writing, so an editor save in between is hardened instead of overwritten.
+
 ## 0.2.8
 
 - The upgrade migration reads post meta with the output filter removed, then writes the hardened hrefs. Unpublished Kirki stages are updated the same way, so a deactivated plugin and Kirki's own reader see the stored fix.

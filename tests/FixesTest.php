@@ -528,7 +528,7 @@ class FixesTest extends TestCase {
 		$document->blocks[ $section ]['title'] = $payload;
 		$document->sanitize_stored_titles();
 		$this->assertStringNotContainsString( '"', $document->blocks[ $section ]['title'] );
-		$this->assertStringNotContainsString( '/', $document->blocks[ $section ]['title'] );
+		$this->assertStringNotContainsString( "'", $document->blocks[ $section ]['title'] );
 		$unsafe = $document->unsafe_titles();
 		$this->assertSame( array(), $unsafe );
 	}
@@ -1312,6 +1312,35 @@ class FixesTest extends TestCase {
 			),
 		);
 		$this->assertTrue( Symbol_Repository::should_migrate_symbol( $plugin, 4, false ) );
+		$longer = $plugin;
+		$longer['styleBlocks']['style-1']['variant']['md'] = Symbol_Repository::ROOT_STYLE . 'color:red;';
+		$this->assertFalse( Symbol_Repository::should_migrate_symbol( $longer, 4, false ) );
+		$already = array(
+			'kirkiMcp' => 1,
+			'name'     => 'Header',
+			'root'     => 'root-8',
+			'data'     => array(
+				'root-8' => array(
+					'id'       => 'root-8',
+					'name'     => 'section',
+					'title'    => 'Header',
+					'children' => array( 'link' ),
+				),
+				'link'   => array(
+					'id'         => 'link',
+					'name'       => 'button',
+					'parentId'   => 'root-8',
+					'properties' => array(
+						'type'       => 'section',
+						'attributes' => array(
+							'href' => 'root',
+						),
+					),
+				),
+			),
+		);
+		$fixed   = Symbol_Repository::rekey_root( $already, 8 );
+		$this->assertSame( 'root-8', $fixed['data']['link']['properties']['attributes']['href'] );
 		$rekeyed = Symbol_Repository::rekey_root(
 			array(
 				'name' => 'Header',
@@ -1409,8 +1438,8 @@ class FixesTest extends TestCase {
 			),
 		);
 		$read   = Document::harden_blocks( $blocks );
-		$this->assertSame( "Who We're", $read['who']['title'] );
-		$this->assertSame( "Who We're", $read['who']['properties']['explicitAnchor'] );
+		$this->assertSame( 'Who Were', $read['who']['title'] );
+		$this->assertSame( 'Who Were', $read['who']['properties']['explicitAnchor'] );
 		$this->assertSame( 'বাংলা', $read['bangla']['title'] );
 		$this->assertStringNotContainsString( "'", $read['link']['properties']['attributes']['href'] );
 	}
@@ -1499,6 +1528,8 @@ class FixesTest extends TestCase {
 		$this->assertContains( '_wp_page_template', $keys );
 		$this->assertNotContains( 'kirki', $keys );
 		$this->assertNotContains( '_edit_lock', $keys );
+		$this->assertNotContains( 'kirki_template_conditions', $keys );
+		$this->assertNotContains( 'kirki_stage_versions', $keys );
 	}
 
 	/**
@@ -1512,6 +1543,107 @@ class FixesTest extends TestCase {
 		} catch ( InvalidArgumentException $error ) {
 			$this->assertStringContainsString( 'must be text', $error->getMessage() );
 		}
+	}
+
+	/**
+	 * Pre-0.2.7 titles with quotes break the section id and both kinds of section link.
+	 */
+	public function test_pre_027_titles_cannot_break_attributes() {
+		$payload     = "x' onmouseover='alert(1)\"><script>";
+		$blocks      = array(
+			'sec'    => array(
+				'id'    => 'sec',
+				'name'  => 'section',
+				'title' => $payload,
+			),
+			'head'   => array(
+				'id'    => 'head',
+				'name'  => 'heading',
+				'title' => "Cafe' " . $payload,
+			),
+			'block'  => array(
+				'id'         => 'block',
+				'name'       => 'link-block',
+				'properties' => array(
+					'type'       => 'section',
+					'attributes' => array(
+						'href' => 'sec',
+					),
+				),
+			),
+			'text'   => array(
+				'id'         => 'text',
+				'name'       => 'link-text',
+				'properties' => array(
+					'type'       => 'section',
+					'attributes' => array(
+						'href' => 'head',
+					),
+				),
+			),
+			'bangla' => array(
+				'id'    => 'bangla',
+				'name'  => 'section',
+				'title' => 'বাংলা শিরোনাম',
+			),
+		);
+		$unsafe      = array();
+		$doc         = new Document();
+		$doc->blocks = $blocks;
+		foreach ( $doc->unsafe_titles() as $row ) {
+			$unsafe[] = $row['id'];
+		}
+		$this->assertContains( 'sec', $unsafe );
+		$this->assertContains( 'head', $unsafe );
+		$this->assertNotContains( 'bangla', $unsafe );
+		$this->assertNotContains( 'text', $unsafe );
+
+		$stored = Document::persistable_meta( array( 'blocks' => $blocks ) );
+		$this->assertNotNull( $stored );
+		$clean = $stored['blocks'];
+		foreach ( array( 'sec', 'head' ) as $id ) {
+			$this->assertStringNotContainsString( "'", $clean[ $id ]['title'] );
+			$this->assertStringNotContainsString( '"', $clean[ $id ]['title'] );
+			$this->assertStringNotContainsString( '<', $clean[ $id ]['title'] );
+			$this->assertStringNotContainsString( '>', $clean[ $id ]['title'] );
+			$this->assertStringNotContainsString( '`', $clean[ $id ]['title'] );
+		}
+		$this->assertSame( 'বাংলা শিরোনাম', $clean['bangla']['title'] );
+		$this->assertStringContainsString( 'Cafe', $clean['head']['title'] );
+		$this->assertStringContainsString( ' ', $clean['head']['title'] );
+		$slug = strtolower( (string) preg_replace( '/\s+/', '-', $clean['sec']['title'] ) );
+		$this->assertStringNotContainsString( "'", $slug );
+		$this->assertStringNotContainsString( '"', $slug );
+
+		$document                              = Document::from_sections(
+			array(
+				array(
+					'title' => 'Keep',
+				),
+			)
+		);
+		$section                               = $document->blocks['body']['children'][0];
+		$document->blocks[ $section ]['title'] = $payload;
+		$document->blocks['heading-1']         = array(
+			'id'       => 'heading-1',
+			'name'     => 'heading',
+			'title'    => $payload,
+			'parentId' => $section,
+		);
+		$document->blocks['link-1']            = array(
+			'id'         => 'link-1',
+			'name'       => 'link-text',
+			'parentId'   => $section,
+			'properties' => array(
+				'type'       => 'section',
+				'attributes' => array(
+					'href' => 'heading-1',
+				),
+			),
+		);
+		$document->sanitize_stored_titles();
+		$this->assertFalse( Document::has_breakout( $document->blocks['heading-1']['title'] ) );
+		$this->assertFalse( Document::has_breakout( $document->blocks[ $section ]['title'] ) );
 	}
 
 	/**

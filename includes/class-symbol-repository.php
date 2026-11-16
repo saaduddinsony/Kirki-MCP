@@ -89,7 +89,10 @@ class Symbol_Repository {
 		);
 		$items = array();
 		foreach ( $posts as $post ) {
-			$data  = self::read_meta( $post->ID );
+			$data = Plugin::read_raw_post_meta( $post->ID, 'kirki' );
+			if ( ! is_array( $data ) ) {
+				$data = array();
+			}
 			$name  = ! empty( $data['name'] ) ? (string) $data['name'] : (string) $post->post_title;
 			$safe  = Spec_Compiler::safe_label( $name );
 			$root  = isset( $data['root'] ) ? (string) $data['root'] : 'root';
@@ -490,7 +493,7 @@ class Symbol_Repository {
 		$styles = isset( $data['styleBlocks'] ) && is_array( $data['styleBlocks'] ) ? $data['styleBlocks'] : array();
 		foreach ( $ids as $style_id ) {
 			$css = isset( $styles[ $style_id ]['variant']['md'] ) ? (string) $styles[ $style_id ]['variant']['md'] : '';
-			if ( false !== strpos( $css, self::ROOT_STYLE ) ) {
+			if ( self::ROOT_STYLE === trim( $css ) ) {
 				return true;
 			}
 		}
@@ -545,9 +548,11 @@ class Symbol_Repository {
 					$post_id = (int) $post_id;
 					try {
 						$raw    = Plugin::read_raw_post_meta( $post_id, 'kirki' );
+						$latest = Plugin::read_raw_post_meta( $post_id, 'kirki' );
+						$basis  = ( is_array( $latest ) && $latest !== $raw ) ? $latest : $raw;
 						$marker = '1' === (string) get_post_meta( $post_id, 'kirki_mcp_symbol', true );
-						$next   = self::migrate_one( $post_id, $raw, in_array( $post_id, $explicit_ids, true ) || $marker );
-						if ( is_array( $raw ) && $next !== $raw ) {
+						$next   = self::migrate_one( $post_id, $basis, in_array( $post_id, $explicit_ids, true ) || $marker );
+						if ( is_array( $basis ) && $next !== $basis ) {
 							Plugin::write_raw_post_meta( $post_id, 'kirki', $next );
 							Plugin::write_raw_post_meta( $post_id, 'kirki_mcp_symbol', '1' );
 						}
@@ -599,7 +604,7 @@ class Symbol_Repository {
 			}
 			$href = isset( $child['properties']['attributes']['href'] ) ? $child['properties']['attributes']['href'] : '';
 			$type = isset( $child['properties']['type'] ) ? $child['properties']['type'] : '';
-			if ( 'section' === $type && $href === $old ) {
+			if ( 'section' === $type && ( $href === $old || 'root' === $href ) && 'root' !== $new ) {
 				$data['data'][ $id ]['properties']['attributes']['href'] = $new;
 			}
 		}

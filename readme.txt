@@ -4,7 +4,7 @@ Tags: kirki, mcp, ai, page-builder, abilities
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.2.8
+Stable tag: 0.2.9
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -52,6 +52,10 @@ Kirki 6.4.x only. It was tested with 6.4.2. Kirki 6.5 and 7 are not supported. F
 Yes, with `kirki-mcp/publish-page`, and only when the user can publish pages.
 
 == Changelog ==
+
+= 0.2.9 =
+* Old titles that contain quotes are stripped in the database, in stages, and on read. Unicode and ordinary spaces stay.
+* audit-unsafe-titles reports headings and link targets as well as sections.
 
 = 0.2.8 =
 * Stored link fixes are written back from the raw meta, including unpublished stages.
