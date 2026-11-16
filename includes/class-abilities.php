@@ -373,7 +373,7 @@ class Abilities {
 			),
 			'reapply-global-classes' => self::tool(
 				'Reapply global classes',
-				'Remove Kirki\'s default local CSS from elements that already have a global class. Pass page_id, or symbol_id for a header or footer. A page_id that is actually a symbol is accepted too. clear_local also removes CSS copied onto the element by hand. Page edits are staged. Symbol edits are saved on the symbol.',
+				'Remove Kirki\'s default local CSS from elements that already have a global class. Pass page_id or symbol_id. symbol_id alone is enough. clear_local also removes CSS copied onto the element by hand. Page edits are staged. Symbol edits are saved on the symbol.',
 				false,
 				array(
 					'type'       => 'object',
@@ -391,7 +391,7 @@ class Abilities {
 							'type' => 'boolean',
 						),
 					),
-					'required'   => array( 'page_id' ),
+					'required'   => array(),
 				),
 				array( self::class, 'reapply_global_classes' ),
 				true
@@ -420,12 +420,20 @@ class Abilities {
 			),
 			'duplicate-page'         => self::tool(
 				'Duplicate a page',
-				'Duplicate a Kirki page as a new draft, including its elements and styles.',
+				'Duplicate a Kirki page as a new draft, including its elements and styles. The copy is always a draft, even when the source is published. Optional title and slug replace the copy title and permalink.',
 				false,
 				array(
 					'type'       => 'object',
 					'properties' => array(
 						'page_id' => $page,
+						'title'   => array(
+							'type'        => 'string',
+							'description' => 'Title for the copy. Defaults to the source title plus " copy".',
+						),
+						'slug'    => array(
+							'type'        => 'string',
+							'description' => 'Slug for the copy. Made unique if that permalink is taken.',
+						),
 					),
 					'required'   => array( 'page_id' ),
 				),
@@ -980,7 +988,10 @@ class Abilities {
 	public static function reapply_global_classes( $input ) {
 		return self::guard(
 			function () use ( $input ) {
-				$target = isset( $input['symbol_id'] ) ? (int) $input['symbol_id'] : (int) $input['page_id'];
+				if ( empty( $input['symbol_id'] ) && empty( $input['page_id'] ) ) {
+					throw new \InvalidArgumentException( 'Pass page_id or symbol_id.' );
+				}
+				$target = ! empty( $input['symbol_id'] ) ? (int) $input['symbol_id'] : (int) $input['page_id'];
 				$post   = get_post( $target );
 				if ( $post && 'kirki_symbol' === $post->post_type ) {
 					return array(
@@ -1026,7 +1037,11 @@ class Abilities {
 	public static function duplicate_page( $input ) {
 		return self::guard(
 			function () use ( $input ) {
-				$copy = Page_Repository::duplicate( (int) $input['page_id'] );
+				$copy = Page_Repository::duplicate(
+					(int) $input['page_id'],
+					isset( $input['title'] ) ? (string) $input['title'] : '',
+					isset( $input['slug'] ) ? (string) $input['slug'] : ''
+				);
 				return Page_Repository::present( $copy );
 			}
 		);

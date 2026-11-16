@@ -25,6 +25,7 @@ class Plugin {
 		add_action( 'wp_abilities_api_categories_init', array( Abilities::class, 'register_category' ) );
 		add_action( 'wp_abilities_api_init', array( Abilities::class, 'register' ) );
 		add_filter( 'get_post_metadata', array( self::class, 'escape_stored_font_urls' ), 10, 4 );
+		add_action( 'init', array( Symbol_Repository::class, 'ensure_root_ids' ) );
 		Admin::register();
 	}
 

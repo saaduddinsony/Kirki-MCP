@@ -164,7 +164,7 @@ bash bin/build-zip.sh
 wp eval-file tests/e2e/staging-check.php
 ```
 
-`tests/e2e/staging-check.php` is run with `wp eval-file` against a WordPress install. It publishes a page, edits it, and publishes again. The zip is written to `dist/kirki-mcp-0.2.5.zip`.
+`tests/e2e/staging-check.php` is run with `wp eval-file` against a WordPress install. It publishes a page, edits it, and publishes again. The zip is written to `dist/kirki-mcp-0.2.6.zip`.
 
 ## Known gaps
 

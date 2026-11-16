@@ -421,10 +421,12 @@ class Page_Repository {
 	/**
 	 * Duplicate a Kirki page as a new draft.
 	 *
-	 * @param int $page_id Source page.
+	 * @param int    $page_id Source page.
+	 * @param string $title Optional title for the copy.
+	 * @param string $slug Optional slug for the copy.
 	 * @return int New page id.
 	 */
-	public static function duplicate( $page_id ) {
+	public static function duplicate( $page_id, $title = '', $slug = '' ) {
 		self::assert_ready();
 		$post = self::page( $page_id );
 		$page = \Kirki\App\Models\Page::find( $post->ID );
@@ -436,10 +438,14 @@ class Page_Repository {
 		if ( $copy_id <= 0 ) {
 			throw new \RuntimeException( 'Kirki did not duplicate the page.' );
 		}
+		$fields              = self::duplicate_fields( $post->post_title, $title, $slug );
+		$fields['post_name'] = self::unique_slug( $fields['post_name'], $copy_id );
 		wp_update_post(
 			array(
-				'ID'         => $copy_id,
-				'post_title' => get_post_field( 'post_title', $copy_id ),
+				'ID'          => $copy_id,
+				'post_status' => 'draft',
+				'post_title'  => $fields['post_title'],
+				'post_name'   => $fields['post_name'],
 			)
 		);
 		foreach ( array( 'kirki_page_seo_settings', 'kirki_page_custom_code', 'kirki_disabled_page_symbols', 'kirki_variable_mode' ) as $key ) {
@@ -450,6 +456,66 @@ class Page_Repository {
 		}
 		self::clean_titles_in_place( $copy_id );
 		return $copy_id;
+	}
+
+	/**
+	 * Fields for a duplicated page. The copy is always a draft.
+	 *
+	 * @param string $source_title Source page title.
+	 * @param string $title Optional new title.
+	 * @param string $slug Optional slug.
+	 * @return array{post_status:string,post_title:string,post_name:string}
+	 */
+	public static function duplicate_fields( $source_title, $title = '', $slug = '' ) {
+		$new_title = trim( wp_strip_all_tags( (string) $title ) );
+		if ( '' === $new_title ) {
+			$new_title = trim( wp_strip_all_tags( (string) $source_title ) );
+			$new_title = '' === $new_title ? 'Page copy' : $new_title . ' copy';
+		}
+		$base = '' !== trim( (string) $slug ) ? (string) $slug : $new_title;
+		$base = strtolower( $base );
+		$base = preg_replace( '/[^a-z0-9-]+/', '-', $base );
+		$base = trim( (string) $base, '-' );
+		if ( '' === $base ) {
+			$base = 'page';
+		}
+		return array(
+			'post_status' => 'draft',
+			'post_title'  => $new_title,
+			'post_name'   => $base,
+		);
+	}
+
+	/**
+	 * A page slug that is not already used, including by drafts.
+	 *
+	 * WordPress skips slug uniqueness for drafts, so a later publish of two copies could collide.
+	 *
+	 * @param string $base Desired slug.
+	 * @param int    $post_id The copy, which is excluded.
+	 * @return string
+	 */
+	public static function unique_slug( $base, $post_id ) {
+		$slug = $base;
+		$n    = 2;
+		if ( ! function_exists( 'get_posts' ) ) {
+			return $slug;
+		}
+		while ( get_posts(
+			array(
+				'name'          => $slug,
+				'post_type'     => 'page',
+				'post_status'   => array( 'publish', 'draft', 'pending', 'private', 'future' ),
+				'numberposts'   => 1,
+				'post__not_in'  => array( (int) $post_id ),
+				'fields'        => 'ids',
+				'no_found_rows' => true,
+			)
+		) ) {
+			$slug = $base . '-' . $n;
+			++$n;
+		}
+		return $slug;
 	}
 
 	/**
@@ -664,7 +730,17 @@ class Page_Repository {
 	 * @return void
 	 */
 	public static function resolve_classes( array &$sections ) {
-		$map  = Global_Repository::name_map();
+		self::apply_class_map( $sections, Global_Repository::name_map() );
+	}
+
+	/**
+	 * Attach class ids from a name map, including nav items and inline links.
+	 *
+	 * @param array $sections Specs, by reference.
+	 * @param array $map Lowercase class name to style-block id.
+	 * @return void
+	 */
+	public static function apply_class_map( array &$sections, array $map ) {
 		$walk = function ( &$elements ) use ( &$walk, $map ) {
 			foreach ( $elements as &$spec ) {
 				if ( ! is_array( $spec ) ) {
@@ -681,8 +757,13 @@ class Page_Repository {
 					}
 					$spec['class_ids'] = $ids;
 				}
-				if ( ! empty( $spec['elements'] ) && is_array( $spec['elements'] ) ) {
-					$walk( $spec['elements'] );
+				foreach ( $spec as $key => $value ) {
+					if ( in_array( $key, array( 'classes', 'styles', 'options', 'attributes', 'class_ids' ), true ) ) {
+						continue;
+					}
+					if ( is_array( $value ) && array() !== $value && array_keys( $value ) === range( 0, count( $value ) - 1 ) ) {
+						$walk( $spec[ $key ] );
+					}
 				}
 			}
 		};

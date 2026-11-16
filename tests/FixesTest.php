@@ -897,6 +897,129 @@ class FixesTest extends TestCase {
 	/**
 	 * A media value cannot smuggle another attribute.
 	 */
+	/**
+	 * A duplicate is always a draft, with a sanitized title and slug.
+	 */
+	public function test_duplicate_fields_are_a_draft() {
+		$fields = Page_Repository::duplicate_fields( 'Published page', '', '' );
+		$this->assertSame( 'draft', $fields['post_status'] );
+		$this->assertSame( 'Published page copy', $fields['post_title'] );
+		$this->assertSame( 'published-page-copy', $fields['post_name'] );
+		$custom = Page_Repository::duplicate_fields( 'Published page', ' <b>New title</b> ', 'My Slug!' );
+		$this->assertSame( 'draft', $custom['post_status'] );
+		$this->assertSame( 'New title', $custom['post_title'] );
+		$this->assertSame( 'my-slug', $custom['post_name'] );
+	}
+
+	/**
+	 * Classes on navigation items and inline links are resolved, not dropped.
+	 */
+	public function test_classes_on_nested_items_are_resolved() {
+		$sections = array(
+			array(
+				'elements' => array(
+					array(
+						'type'  => 'navigation',
+						'items' => array(
+							array(
+								'text'    => 'Work',
+								'href'    => '/work',
+								'classes' => array( 'nav-link' ),
+							),
+						),
+					),
+					array(
+						'type'   => 'paragraph',
+						'inline' => array(
+							'See ',
+							array(
+								'text'    => 'privacy',
+								'href'    => '/privacy',
+								'classes' => array( 'Missing' ),
+							),
+						),
+					),
+				),
+			),
+		);
+		try {
+			Page_Repository::apply_class_map( $sections, array( 'nav-link' => 'class-9' ) );
+			$this->fail( 'An unknown class should be rejected.' );
+		} catch ( InvalidArgumentException $error ) {
+			$this->assertStringContainsString( 'missing', $error->getMessage() );
+		}
+		$sections[0]['elements'][1]['inline'][1]['classes'] = array( 'nav-link' );
+		Page_Repository::apply_class_map( $sections, array( 'nav-link' => 'class-9' ) );
+		$this->assertSame( array( 'class-9' ), $sections[0]['elements'][0]['items'][0]['class_ids'] );
+		$this->assertSame( array( 'class-9' ), $sections[0]['elements'][1]['inline'][1]['class_ids'] );
+	}
+
+	/**
+	 * Header and footer roots get different HTML ids, and a shared anchor is rejected.
+	 */
+	public function test_symbol_root_ids_are_unique() {
+		$this->assertSame( 'makerspace-header-19', Symbol_Repository::root_html_id( 'Makerspace header', 19 ) );
+		$this->assertSame( 'makerspace-footer-20', Symbol_Repository::root_html_id( 'Makerspace footer', 20 ) );
+		$this->assertNotSame(
+			Symbol_Repository::root_html_id( 'Makerspace header', 19 ),
+			Symbol_Repository::root_html_id( 'Makerspace header', 20 )
+		);
+		$header = Symbol_Repository::stamp_root_id(
+			array(
+				'name' => 'Makerspace header',
+				'root' => 'root',
+				'data' => array(
+					'root' => array(
+						'title'      => 'Makerspace header',
+						'properties' => array(),
+					),
+				),
+			),
+			19
+		);
+		$footer = Symbol_Repository::stamp_root_id(
+			array(
+				'name' => 'Makerspace header',
+				'root' => 'root',
+				'data' => array(
+					'root' => array( 'title' => 'Makerspace header' ),
+				),
+			),
+			20
+		);
+		$this->assertSame( '', Symbol_Repository::first_id_collision( Symbol_Repository::rendered_ids( $header ), Symbol_Repository::rendered_ids( $footer ) ) );
+		$clash = Symbol_Repository::first_id_collision( array( 'menu' ), array( 'menu' ) );
+		$this->assertSame( 'menu', $clash );
+	}
+
+	/**
+	 * A class update refreshes the copy on a header symbol.
+	 */
+	public function test_header_symbol_class_copy_refreshes() {
+		$updated = Symbol_Repository::refresh_class_copy(
+			array(
+				'setAs' => 'header',
+				'data'  => array(
+					'nav' => array(
+						'properties' => array(
+							'classesIds' => array( 'class-1' ),
+						),
+					),
+				),
+				'styleBlocks' => array(
+					'class-1' => array( 'name' => 'old' ),
+				),
+			),
+			'class-1',
+			array( 'id' => 'class-1', 'name' => 'nav-link', 'variant' => array( 'md' => 'color:#111;' ) )
+		);
+		$this->assertSame( 'header', $updated['setAs'] );
+		$this->assertSame( 'nav-link', $updated['styleBlocks']['class-1']['name'] );
+	}
+
+	/**
+	 * A media value cannot smuggle another attribute.
+	 */
 	public function test_style_media_value_is_restricted() {
 		$this->expectException( InvalidArgumentException::class );
 		Css::head_style_blocks( '<style media=\'a" onload="alert(1)\'>body{color:red}</style>' );

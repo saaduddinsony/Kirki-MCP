@@ -180,7 +180,7 @@ class Global_Repository {
 			array(
 				'post_type'   => 'kirki_symbol',
 				'post_status' => array( 'draft', 'publish', 'private' ),
-				'numberposts' => 100,
+				'numberposts' => -1,
 			)
 		);
 		foreach ( $posts as $post ) {

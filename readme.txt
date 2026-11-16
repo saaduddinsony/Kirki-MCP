@@ -4,7 +4,7 @@ Tags: kirki, mcp, ai, page-builder, abilities
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.2.5
+Stable tag: 0.2.6
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -52,6 +52,12 @@ Kirki 6.4.x only. It was tested with 6.4.2. Kirki 6.5 and 7 are not supported. F
 Yes, with `kirki-mcp/publish-page`, and only when the user can publish pages.
 
 == Changelog ==
+
+= 0.2.6 =
+* Duplicated pages are drafts. Optional title and slug are sanitized, and the slug is made unique.
+* Global classes on navigation items and inline links are applied. Unknown classes are rejected.
+* reapply-global-classes accepts symbol_id without page_id.
+* Each symbol root gets its own HTML id, so a header and footer cannot both render the same id.
 
 = 0.2.5 =
 * Select and radio option values cannot contain quotes or markup. Labels are stored as HTML entities.

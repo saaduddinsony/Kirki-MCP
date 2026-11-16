@@ -198,6 +198,14 @@ class Symbol_Repository {
 		}
 
 		$post_id = (int) $saved->id;
+		try {
+			$built = self::stamp_root_id( $built, $post_id );
+			self::assert_ids_unique( $post_id, $built );
+		} catch ( \Throwable $error ) {
+			wp_delete_post( $post_id, true );
+			throw $error;
+		}
+		update_post_meta( $post_id, 'kirki', $built );
 		wp_update_post(
 			array(
 				'ID'          => $post_id,
@@ -253,6 +261,8 @@ class Symbol_Repository {
 		}
 		$data['setAs']    = '';
 		$data['category'] = 'other';
+		$data             = self::stamp_root_id( $data, $post->ID );
+		self::assert_ids_unique( $post->ID, $data );
 
 		update_post_meta( $post->ID, 'kirki', $data );
 		update_post_meta( $post->ID, 'kirki_editor_mode', 'kirki' );
@@ -378,8 +388,159 @@ class Symbol_Repository {
 	}
 
 	/**
-	 * Update one symbol's stored class snapshot when that class changes.
+	 * HTML id for a symbol root. Includes the symbol post id so a header and footer cannot share one.
 	 *
+	 * @param string $name Symbol name.
+	 * @param int    $post_id Symbol post id.
+	 * @return string
+	 */
+	public static function root_html_id( $name, $post_id ) {
+		$slug = Spec_Compiler::anchor_slug( $name );
+		if ( '' === $slug ) {
+			$slug = 'symbol';
+		}
+		$post_id = (int) $post_id;
+		if ( $post_id > 0 ) {
+			return $slug . '-' . $post_id;
+		}
+		return $slug;
+	}
+
+	/**
+	 * Ids this symbol will print: the root title plus any explicit anchor.
+	 *
+	 * @param array $data Symbol meta.
+	 * @return string[]
+	 */
+	public static function rendered_ids( array $data ) {
+		$ids  = array();
+		$root = isset( $data['root'] ) ? (string) $data['root'] : 'root';
+		if ( isset( $data['data'][ $root ]['title'] ) ) {
+			$ids[] = Spec_Compiler::anchor_slug( $data['data'][ $root ]['title'] );
+		}
+		if ( isset( $data['data'] ) && is_array( $data['data'] ) ) {
+			foreach ( $data['data'] as $element ) {
+				if ( ! is_array( $element ) ) {
+					continue;
+				}
+				if ( ! empty( $element['properties']['explicitAnchor'] ) ) {
+					$ids[] = Spec_Compiler::anchor_slug( $element['properties']['explicitAnchor'] );
+				}
+				if ( ! empty( $element['properties']['customAttributes']['id'] ) ) {
+					$ids[] = Spec_Compiler::anchor_slug( $element['properties']['customAttributes']['id'] );
+				}
+			}
+		}
+		$ids = array_filter( $ids );
+		return array_values( array_unique( $ids ) );
+	}
+
+	/**
+	 * First id present in both lists.
+	 *
+	 * @param string[] $mine Ids for the symbol being saved.
+	 * @param string[] $theirs Ids already used by other symbols.
+	 * @return string
+	 */
+	public static function first_id_collision( array $mine, array $theirs ) {
+		$used = array_fill_keys( $theirs, true );
+		foreach ( $mine as $id ) {
+			if ( isset( $used[ $id ] ) ) {
+				return $id;
+			}
+		}
+		return '';
+	}
+
+	/**
+	 * Give every saved symbol a unique root id once.
+	 *
+	 * Existing header and footer symbols keep the title they were saved with
+	 * until something writes them again. This pass updates that title so the
+	 * next page render does not repeat the same HTML id.
+	 *
+	 * @return void
+	 */
+	public static function ensure_root_ids() {
+		if ( ! function_exists( 'get_option' ) || ! function_exists( 'get_posts' ) ) {
+			return;
+		}
+		if ( '1' === (string) get_option( 'kirki_mcp_symbol_root_ids', '' ) ) {
+			return;
+		}
+		$posts = get_posts(
+			array(
+				'post_type'   => 'kirki_symbol',
+				'post_status' => array( 'draft', 'publish', 'private' ),
+				'numberposts' => -1,
+			)
+		);
+		foreach ( $posts as $post ) {
+			$data = self::read_meta( $post->ID );
+			if ( ! $data ) {
+				continue;
+			}
+			$stamped = self::stamp_root_id( $data, $post->ID );
+			if ( $stamped !== $data ) {
+				update_post_meta( $post->ID, 'kirki', $stamped );
+			}
+		}
+		update_option( 'kirki_mcp_symbol_root_ids', '1', false );
+	}
+
+	/**
+	 * Set the symbol root title to a per-symbol HTML id.
+	 *
+	 * @param array $data Symbol meta.
+	 * @param int   $post_id Symbol post id.
+	 * @return array
+	 */
+	public static function stamp_root_id( array $data, $post_id ) {
+		$root = isset( $data['root'] ) ? (string) $data['root'] : 'root';
+		$name = isset( $data['name'] ) ? (string) $data['name'] : '';
+		if ( isset( $data['data'][ $root ] ) && is_array( $data['data'][ $root ] ) ) {
+			$data['data'][ $root ]['title'] = self::root_html_id( $name, $post_id );
+			if ( isset( $data['data'][ $root ]['properties']['explicitAnchor'] ) ) {
+				unset( $data['data'][ $root ]['properties']['explicitAnchor'] );
+			}
+		}
+		return $data;
+	}
+
+	/**
+	 * Reject an anchor or root id another symbol already prints.
+	 *
+	 * @param int   $post_id This symbol.
+	 * @param array $data Symbol meta.
+	 * @return void
+	 */
+	private static function assert_ids_unique( $post_id, array $data ) {
+		$mine = self::rendered_ids( $data );
+		if ( ! $mine || ! function_exists( 'get_posts' ) ) {
+			return;
+		}
+		$posts  = get_posts(
+			array(
+				'post_type'   => 'kirki_symbol',
+				'post_status' => array( 'draft', 'publish', 'private' ),
+				'numberposts' => -1,
+				'exclude'     => array( (int) $post_id ),
+			)
+		);
+		$theirs = array();
+		foreach ( $posts as $post ) {
+			$other = self::read_meta( $post->ID );
+			if ( $other ) {
+				$theirs = array_merge( $theirs, self::rendered_ids( $other ) );
+			}
+		}
+		$clash = self::first_id_collision( $mine, $theirs );
+		if ( '' !== $clash ) {
+			throw new \InvalidArgumentException( 'The id "' . $clash . '" is already used by another symbol. Header and footer ids must be unique on the page.' );
+		}
+	}
+
+	/**
 	 * @param array  $data Symbol meta.
 	 * @param string $class_id Style-block id.
 	 * @param array  $block Updated class block.

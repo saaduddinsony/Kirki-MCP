@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.6
+
+- `duplicate-page` always creates a draft, even when the source page is published. Optional `title` and `slug` are sanitized, and the slug is made unique.
+- Global classes on navigation items, inline links, and other nested lists are resolved. A class that is not found is an error, not a silent skip.
+- `reapply-global-classes` accepts `symbol_id` without `page_id`.
+- A symbol root HTML id includes the symbol post id, so a header and footer cannot both render `id="makerspace-header"`. An explicit anchor that another symbol already uses is rejected. Symbols already saved are updated once on the next request.
+- Updating a global class still refreshes the frozen copy on every `kirki_symbol` post, including header and footer symbols rendered on pages.
+
 ## 0.2.5
 
 - Select and radio option values must match letters, numbers, spaces, and `. , : @ + / -`. Labels have quotes and markup stored as HTML entities, because Kirki prints both unescaped.
