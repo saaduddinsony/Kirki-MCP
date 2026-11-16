@@ -4,7 +4,7 @@ Tags: kirki, mcp, ai, page-builder, abilities
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.2.7
+Stable tag: 0.2.8
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -52,6 +52,11 @@ Kirki 6.4.x only. It was tested with 6.4.2. Kirki 6.5 and 7 are not supported. F
 Yes, with `kirki-mcp/publish-page`, and only when the user can publish pages.
 
 == Changelog ==
+
+= 0.2.8 =
+* Stored link fixes are written back from the raw meta, including unpublished stages.
+* Symbols this plugin built before 0.2.6 get a unique root element id. Symbols built in Kirki's editor are left alone.
+* Reading a page no longer rewrites hand-written anchors or non-Latin titles.
 
 = 0.2.7 =
 * Link URLs cannot break out of a single-quoted href. Section links only target sections or anchored elements. Form names are safe labels.

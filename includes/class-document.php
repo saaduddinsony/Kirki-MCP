@@ -364,11 +364,7 @@ class Document {
 		$this->assert_exists( $id );
 		$clean = array();
 		foreach ( $class_ids as $class_id ) {
-			$class_id = (string) $class_id;
-			if ( ! preg_match( '/^[A-Za-z0-9_-]+$/', $class_id ) ) {
-				throw new \InvalidArgumentException( 'A global class id is not valid.' );
-			}
-			$clean[] = $class_id;
+			$clean[] = Spec_Compiler::class_id( $class_id );
 		}
 		$this->blocks[ $id ]['properties']['classesIds'] = $clean;
 		if ( $clean ) {
@@ -435,67 +431,39 @@ class Document {
 	public function sanitize_stored_titles() {
 		$before       = $this->blocks;
 		$this->blocks = self::harden_blocks( $this->blocks );
+		$this->blocks = self::neutralize_breakout_titles( $this->blocks );
 		return $this->blocks === $before ? 0 : 1;
 	}
 
 	/**
-	 * Make stored blocks safe for the attributes Kirki prints raw.
-	 *
-	 * Section-link targets and anchored titles go through safe_label. Link
-	 * URLs lose quotes and whitespace. Form names lose characters that break
-	 * out of wp_json_encode in HTML.
+	 * Encode link URLs Kirki prints raw. Titles and anchors are left as stored.
 	 *
 	 * @param array $blocks Element map.
 	 * @return array
 	 */
 	public static function harden_blocks( array $blocks ) {
-		$targets = array();
-		foreach ( $blocks as $block ) {
-			if ( ! is_array( $block ) ) {
-				continue;
-			}
-			$type = isset( $block['properties']['type'] ) ? $block['properties']['type'] : '';
-			if ( 'section' !== $type ) {
-				continue;
-			}
-			$href = isset( $block['properties']['attributes']['href'] ) ? $block['properties']['attributes']['href'] : '';
-			if ( is_string( $href ) && isset( $blocks[ $href ] ) ) {
-				$targets[ $href ] = true;
-			}
-		}
-
 		foreach ( $blocks as $id => $block ) {
 			if ( ! is_array( $block ) ) {
 				continue;
 			}
 			$link_type = isset( $block['properties']['type'] ) ? $block['properties']['type'] : '';
-			if ( isset( $block['properties']['attributes'] ) && is_array( $block['properties']['attributes'] ) ) {
-				foreach ( array( 'href', 'src' ) as $field ) {
-					if ( ! isset( $block['properties']['attributes'][ $field ] ) || ! is_string( $block['properties']['attributes'][ $field ] ) ) {
-						continue;
-					}
-					if ( 'href' === $field && 'section' === $link_type ) {
-						continue;
-					}
-					$blocks[ $id ]['properties']['attributes'][ $field ] = Css::attribute_url( $block['properties']['attributes'][ $field ] );
-				}
-				if ( isset( $block['name'] ) && 'form' === $block['name'] && isset( $block['properties']['attributes']['name'] ) ) {
-					$safe = Spec_Compiler::safe_label( $block['properties']['attributes']['name'] );
-					$blocks[ $id ]['properties']['attributes']['name'] = '' === $safe ? 'Contact' : $safe;
-				}
+			if ( ! isset( $block['properties']['attributes'] ) || ! is_array( $block['properties']['attributes'] ) ) {
+				continue;
 			}
-			$anchored = ! empty( $block['properties']['explicitAnchor'] ) || ! empty( $block['properties']['customAttributes']['id'] );
-			$feeds    = ( isset( $block['name'] ) && 'section' === $block['name'] ) || $anchored || isset( $targets[ $id ] );
-			if ( $feeds && isset( $block['title'] ) ) {
-				$safe = Spec_Compiler::safe_label( $block['title'] );
-				if ( '' === $safe && isset( $block['name'] ) && 'section' === $block['name'] ) {
-					$safe = 'section';
+			foreach ( array( 'href', 'src' ) as $field ) {
+				if ( ! isset( $block['properties']['attributes'][ $field ] ) || ! is_string( $block['properties']['attributes'][ $field ] ) ) {
+					continue;
 				}
-				if ( '' !== $safe ) {
-					$blocks[ $id ]['title'] = $safe;
-					if ( ! empty( $block['properties']['explicitAnchor'] ) ) {
-						$blocks[ $id ]['properties']['explicitAnchor'] = Spec_Compiler::anchor_slug( $safe );
-					}
+				if ( 'href' === $field && 'section' === $link_type ) {
+					continue;
+				}
+				$blocks[ $id ]['properties']['attributes'][ $field ] = Css::attribute_url( $block['properties']['attributes'][ $field ] );
+			}
+			if ( isset( $block['name'] ) && 'form' === $block['name'] && isset( $block['properties']['attributes']['name'] ) && is_string( $block['properties']['attributes']['name'] ) ) {
+				$name = $block['properties']['attributes']['name'];
+				if ( preg_match( '/["<>`]/', $name ) ) {
+					$safe = Spec_Compiler::safe_label( $name );
+					$blocks[ $id ]['properties']['attributes']['name'] = '' === $safe ? 'Contact' : $safe;
 				}
 			}
 		}
@@ -503,7 +471,36 @@ class Document {
 	}
 
 	/**
-	 * Page or symbol meta, with the same hardening as a save.
+	 * Slug a section title only when it can break out of id="...".
+	 *
+	 * Apostrophes and non-Latin titles stay. "Who We're" and a Bangla title are not rewritten.
+	 *
+	 * @param array $blocks Element map.
+	 * @return array
+	 */
+	public static function neutralize_breakout_titles( array $blocks ) {
+		foreach ( $blocks as $id => $block ) {
+			if ( ! is_array( $block ) || ! isset( $block['name'] ) || 'section' !== $block['name'] || ! isset( $block['title'] ) ) {
+				continue;
+			}
+			$title = (string) $block['title'];
+			if ( ! preg_match( '/["<>\\\\\/]/', $title ) ) {
+				continue;
+			}
+			$safe = Spec_Compiler::safe_label( $title );
+			if ( '' === $safe ) {
+				$safe = 'section';
+			}
+			$blocks[ $id ]['title'] = $safe;
+			if ( ! empty( $block['properties']['explicitAnchor'] ) ) {
+				$blocks[ $id ]['properties']['explicitAnchor'] = Spec_Compiler::anchor_slug( $safe );
+			}
+		}
+		return $blocks;
+	}
+
+	/**
+	 * Page or symbol meta, with href hardening only.
 	 *
 	 * @param array $meta kirki meta.
 	 * @return array
@@ -516,6 +513,37 @@ class Document {
 			$meta['data'] = self::harden_blocks( $meta['data'] );
 		}
 		return $meta;
+	}
+
+	/**
+	 * The value to write back, or null when the raw record is already safe.
+	 *
+	 * Comparing a value that was already passed through the read filter returns
+	 * null, so the migration must start from the database value.
+	 *
+	 * @param mixed $raw Stored meta before the read filter.
+	 * @return array|null
+	 */
+	public static function persistable_meta( $raw ) {
+		if ( ! is_array( $raw ) ) {
+			return null;
+		}
+		$next = self::harden_kirki_meta( $raw );
+		return $next === $raw ? null : $next;
+	}
+
+	/**
+	 * Unpublished stage rows are stored apart from post meta. Published rows are not.
+	 *
+	 * @param array $version Stage record with a publish flag.
+	 * @param mixed $raw Stored kirki value for that stage.
+	 * @return array|null
+	 */
+	public static function stage_migration_payload( array $version, $raw ) {
+		if ( ! empty( $version['publish'] ) ) {
+			return null;
+		}
+		return self::persistable_meta( $raw );
 	}
 
 	/**

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.8
+
+- The upgrade migration reads post meta with the output filter removed, then writes the hardened hrefs. Unpublished Kirki stages are updated the same way, so a deactivated plugin and Kirki's own reader see the stored fix.
+- Symbols this plugin built in 0.2.5 and earlier are detected by the `kirkiMcp` marker, the `kirki_mcp_symbol` meta, or the root style this plugin writes. Their root element id becomes `root-{post id}`, and section links that pointed at `root` are updated. A title stamped by 0.2.6 is not treated as proof, so symbols built in Kirki's editor stay as they are.
+- The read filter only encodes link and image URLs. It does not rewrite section titles or anchors, so "Who We're" and non-Latin titles stay intact.
+- Read-only abilities do not run the migration. `duplicate-page` copies every `kirki_*` meta key and the page template. The link filter caches its result for the request. The symbol class refresh takes an atomic lock. Raw class ids must be text in the allowed charset.
+
 ## 0.2.7
 
 - Link URLs are percent-encoded for `' " ` < >` and whitespace. `esc_url_raw` keeps apostrophes, and Kirki prints link-text hrefs inside single quotes. Stored `kirki` meta is hardened on read, and a one-time rewrite runs on activation, an admin upgrade, or an authorized ability call.

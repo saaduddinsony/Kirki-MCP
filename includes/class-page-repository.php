@@ -451,7 +451,9 @@ class Page_Repository {
 		$styles   = self::read_meta( $post->ID, 'kirki_global_style_block_random', $stage );
 		$document = Document::from_stored( $meta, $styles );
 		self::save( $copy_id, $document, null, false );
-		foreach ( array( 'kirki_page_seo_settings', 'kirki_page_custom_code', 'kirki_disabled_page_symbols', 'kirki_variable_mode' ) as $key ) {
+		$stored = get_post_meta( $post->ID );
+		$keys   = self::duplicate_meta_keys( is_array( $stored ) ? array_keys( $stored ) : array() );
+		foreach ( $keys as $key ) {
 			$value = get_post_meta( $post->ID, $key, true );
 			if ( '' !== $value && array() !== $value && null !== $value ) {
 				Json_Data::update_meta( $copy_id, $key, $value );
@@ -481,6 +483,36 @@ class Page_Repository {
 			'post_title'  => $new_title,
 			'post_name'   => $base,
 		);
+	}
+
+	/**
+	 * Kirki meta keys to copy onto a duplicated page.
+	 *
+	 * The document writer already stores the blocks, styles, and editor mode.
+	 *
+	 * @param string[] $source_keys Meta keys on the source page.
+	 * @return string[]
+	 */
+	public static function duplicate_meta_keys( array $source_keys ) {
+		$skip = array(
+			'kirki',
+			'kirki_global_style_block_random',
+			'kirki_used_style_block_ids',
+			'kirki_used_style_block_ids_random',
+			'kirki_editor_mode',
+		);
+		$keys = array();
+		foreach ( $source_keys as $key ) {
+			$key = (string) $key;
+			if ( '_wp_page_template' !== $key && 0 !== strpos( $key, 'kirki_' ) ) {
+				continue;
+			}
+			if ( in_array( $key, $skip, true ) ) {
+				continue;
+			}
+			$keys[] = $key;
+		}
+		return $keys;
 	}
 
 	/**
@@ -558,20 +590,16 @@ class Page_Repository {
 					)
 				);
 				foreach ( $posts as $post_id ) {
+					$post_id = (int) $post_id;
 					try {
-						$raw = get_post_meta( (int) $post_id, 'kirki', true );
-						if ( ! is_array( $raw ) ) {
-							if ( is_object( $raw ) ) {
-								throw new \InvalidArgumentException( 'Post ' . (int) $post_id . ' meta is a PHP object.' );
-							}
-							continue;
+						$raw  = Plugin::read_raw_post_meta( $post_id, 'kirki' );
+						$next = Document::persistable_meta( $raw );
+						if ( null !== $next ) {
+							Plugin::write_raw_post_meta( $post_id, 'kirki', $next );
 						}
-						$next = Document::harden_kirki_meta( $raw );
-						if ( $next !== $raw ) {
-							Json_Data::update_meta( $post_id, 'kirki', $next );
-						}
+						self::migrate_stage_urls( $post_id );
 					} catch ( \Throwable $error ) {
-						error_log( 'Kirki MCP URL migration skipped ' . (int) $post_id . ': ' . $error->getMessage() ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+						error_log( 'Kirki MCP URL migration skipped ' . $post_id . ': ' . $error->getMessage() ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
 					}
 				}
 			}
@@ -580,6 +608,36 @@ class Page_Repository {
 		}
 		if ( function_exists( 'update_option' ) ) {
 			update_option( 'kirki_mcp_stored_urls', '1' );
+		}
+	}
+
+	/**
+	 * Write hardened hrefs into unpublished stage rows.
+	 *
+	 * Published rows live in post meta and are handled separately. Kirki's
+	 * stage reader does not use get_post_meta, so a filter-only fix would miss them.
+	 *
+	 * @param int $page_id Page id.
+	 * @return void
+	 */
+	private static function migrate_stage_urls( $page_id ) {
+		if ( 'page' !== get_post_type( $page_id ) || ! class_exists( '\Kirki\App\Supports\Facades\Page' ) ) {
+			return;
+		}
+		$versions = \Kirki\App\Supports\Facades\Page::get_all_staged_versions( (int) $page_id, false );
+		if ( ! is_iterable( $versions ) ) {
+			return;
+		}
+		foreach ( $versions as $version ) {
+			if ( ! is_array( $version ) || empty( $version['version'] ) ) {
+				continue;
+			}
+			$raw  = \Kirki\App\Supports\Facades\Page::read_page_meta( (int) $page_id, 'kirki', (int) $version['version'], array() );
+			$next = Document::stage_migration_payload( $version, $raw );
+			if ( null === $next ) {
+				continue;
+			}
+			\Kirki\App\Supports\Facades\Page::save_blocks( (int) $page_id, $next, (int) $version['version'] );
 		}
 	}
 

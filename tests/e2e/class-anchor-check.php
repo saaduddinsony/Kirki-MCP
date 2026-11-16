@@ -53,7 +53,7 @@ if ( empty( $fonts['fonts_loaded'][0]['font_url'] ) || false === strpos( $fonts[
 	throw new RuntimeException( 'The font variable did not register a stylesheet.' );
 }
 
-$page = kirki_mcp_check(
+$created_page = kirki_mcp_check(
 	'create-page',
 	array(
 		'title'    => 'Anchor check',
@@ -82,13 +82,13 @@ $page = kirki_mcp_check(
 kirki_mcp_check(
 	'update-custom-code',
 	array(
-		'page_id' => $page['id'],
+		'page_id' => $created_page['id'],
 		'head'    => '<style>:root{--makerspace-ink:#17181a}</style>',
 	)
 );
 
-$html = Kirki\HelperFunctions::retrieve_post_content( $page['id'] );
-$code = get_post_meta( $page['id'], 'kirki_page_custom_code', true );
+$html = Kirki\HelperFunctions::retrieve_post_content( $created_page['id'] );
+$code = get_post_meta( $created_page['id'], 'kirki_page_custom_code', true );
 $head = is_array( $code ) && isset( $code['head']['value'] ) ? $code['head']['value'] : '';
 $font = Kirki\HelperFunctions::get_custom_fonts_tags();
 
@@ -111,4 +111,4 @@ if ( false === strpos( $font, 'fonts.googleapis.com' ) || false === strpos( $fon
 	throw new RuntimeException( 'Kirki did not print the font stylesheet. ' . $font );
 }
 
-echo "class, anchor, list, and font checks passed for page {$page['id']}\n";
+echo 'class, anchor, list, and font checks passed for page ' . esc_html( (string) $created_page['id'] ) . "\n";

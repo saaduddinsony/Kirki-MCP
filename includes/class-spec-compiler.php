@@ -417,11 +417,7 @@ class Spec_Compiler {
 		if ( ! empty( $spec['class_ids'] ) && is_array( $spec['class_ids'] ) ) {
 			$class_ids = array();
 			foreach ( $spec['class_ids'] as $class_id ) {
-				$class_id = (string) $class_id;
-				if ( ! preg_match( '/^[A-Za-z0-9_-]+$/', $class_id ) ) {
-					throw new \InvalidArgumentException( 'A global class id is not valid.' );
-				}
-				$class_ids[] = $class_id;
+				$class_ids[] = self::class_id( $class_id );
 			}
 			$block['properties']['classesIds'] = $class_ids;
 		}
@@ -1187,11 +1183,7 @@ class Spec_Compiler {
 		if ( ! empty( $field['class_ids'] ) && is_array( $field['class_ids'] ) ) {
 			$ids = array();
 			foreach ( $field['class_ids'] as $class_id ) {
-				$class_id = (string) $class_id;
-				if ( ! preg_match( '/^[A-Za-z0-9_-]+$/', $class_id ) ) {
-					throw new \InvalidArgumentException( 'A global class id is not valid.' );
-				}
-				$ids[] = $class_id;
+				$ids[] = self::class_id( $class_id );
 			}
 			$block['properties']['classesIds'] = $ids;
 			$style_ids                         = isset( $block['styleIds'] ) && is_array( $block['styleIds'] ) ? $block['styleIds'] : array();
@@ -1305,6 +1297,23 @@ class Spec_Compiler {
 		}
 		if ( ! preg_match( '/^[A-Za-z0-9 _.,:@+\/-]{1,100}$/', $value ) ) {
 			throw new \InvalidArgumentException( 'An option value may only contain letters, numbers, spaces, and . , : @ + / -. Quotes and markup are not allowed.' );
+		}
+		return $value;
+	}
+
+	/**
+	 * A global class id supplied directly, rather than resolved from a name.
+	 *
+	 * @param mixed $value Raw id.
+	 * @return string
+	 */
+	public static function class_id( $value ) {
+		if ( is_array( $value ) || is_object( $value ) || null === $value || is_bool( $value ) ) {
+			throw new \InvalidArgumentException( 'A global class id must be text.' );
+		}
+		$value = (string) $value;
+		if ( ! preg_match( '/^[A-Za-z0-9_-]+$/', $value ) ) {
+			throw new \InvalidArgumentException( 'A global class id is not valid.' );
 		}
 		return $value;
 	}

@@ -134,16 +134,29 @@ class Plugin {
 	 * @return mixed
 	 */
 	public static function escape_stored_links( $value, $object_id, $meta_key, $single ) { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed -- WordPress passes $single; the return shape covers both.
-		if ( 'kirki' !== $meta_key || null !== $value ) {
+		if ( 'kirki' !== $meta_key || null !== $value || self::$reading_raw_meta ) {
 			return $value;
 		}
+		$object_id = (int) $object_id;
 		remove_filter( 'get_post_metadata', array( self::class, 'escape_stored_links' ), 10 );
 		try {
-			$meta = get_post_meta( (int) $object_id, 'kirki', true );
+			$meta = get_post_meta( $object_id, 'kirki', true );
 			if ( ! is_array( $meta ) ) {
 				return $value;
 			}
-			return array( Document::harden_kirki_meta( $meta ) );
+			$hash = md5( (string) wp_json_encode( $meta ) );
+			if ( isset( self::$link_cache[ $object_id ] ) && self::$link_cache[ $object_id ]['hash'] === $hash ) {
+				return self::$link_cache[ $object_id ]['value'];
+			}
+			$hardened = array( Document::harden_kirki_meta( $meta ) );
+			if ( count( self::$link_cache ) > 30 ) {
+				self::$link_cache = array();
+			}
+			self::$link_cache[ $object_id ] = array(
+				'hash'  => $hash,
+				'value' => $hardened,
+			);
+			return $hardened;
 		} catch ( \Throwable $error ) {
 			unset( $error );
 			return $value;
@@ -151,4 +164,104 @@ class Plugin {
 			add_filter( 'get_post_metadata', array( self::class, 'escape_stored_links' ), 10, 4 );
 		}
 	}
+
+	/**
+	 * Read post meta without this plugin's output filters.
+	 *
+	 * The link filter would otherwise return already-hardened data, and the
+	 * migration would decide there was nothing to store.
+	 *
+	 * @param int    $post_id Post id.
+	 * @param string $key Meta key.
+	 * @return mixed
+	 */
+	public static function read_raw_post_meta( $post_id, $key ) {
+		$result = null;
+		self::without_meta_filters(
+			function () use ( $post_id, $key, &$result ) {
+				$result = get_post_meta( (int) $post_id, $key, true );
+			}
+		);
+		return $result;
+	}
+
+	/**
+	 * Write post meta while output filters are off.
+	 *
+	 * WordPress compares the new value with get_post_meta before writing. With the
+	 * link filter on, that comparison sees the hardened value and skips storing it.
+	 *
+	 * @param int    $post_id Post id.
+	 * @param string $key Meta key.
+	 * @param mixed  $value Meta value.
+	 * @return void
+	 */
+	public static function write_raw_post_meta( $post_id, $key, $value ) {
+		self::without_meta_filters(
+			function () use ( $post_id, $key, $value ) {
+				update_post_meta( (int) $post_id, $key, Json_Data::slash( $value ) );
+			}
+		);
+		if ( 'kirki' === $key ) {
+			self::forget_link_cache( $post_id );
+		}
+	}
+
+	/**
+	 * @param callable $work Callback.
+	 * @return void
+	 */
+	private static function without_meta_filters( $work ) {
+		self::$reading_raw_meta = true;
+		remove_filter( 'get_post_metadata', array( self::class, 'escape_stored_links' ), 10 );
+		remove_filter( 'get_post_metadata', array( self::class, 'escape_stored_font_urls' ), 10 );
+		try {
+			call_user_func( $work );
+		} finally {
+			self::$reading_raw_meta = false;
+			add_filter( 'get_post_metadata', array( self::class, 'escape_stored_font_urls' ), 10, 4 );
+			add_filter( 'get_post_metadata', array( self::class, 'escape_stored_links' ), 10, 4 );
+		}
+	}
+
+	/**
+	 * Whether a caller should run the stored-data migration.
+	 *
+	 * @param string $method Ability method name.
+	 * @return bool
+	 */
+	public static function migrates_for( $method ) {
+		$reads = array(
+			'get_site_context',
+			'list_pages',
+			'get_page',
+			'list_global_classes',
+			'list_global_variables',
+			'list_symbols',
+			'get_symbol',
+			'audit_unsafe_titles',
+			'list_templates',
+		);
+		return ! in_array( $method, $reads, true );
+	}
+
+	/**
+	 * Drop a cached read so the next lookup sees a write from this request.
+	 *
+	 * @param int $post_id Post id.
+	 * @return void
+	 */
+	public static function forget_link_cache( $post_id ) {
+		unset( self::$link_cache[ (int) $post_id ] );
+	}
+
+	/**
+	 * @var bool
+	 */
+	private static $reading_raw_meta = false;
+
+	/**
+	 * @var array<int,array{hash:string,value:array}>
+	 */
+	private static $link_cache = array();
 }

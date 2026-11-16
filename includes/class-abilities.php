@@ -1284,7 +1284,14 @@ class Abilities {
 	 */
 	private static function guard( $callback ) {
 		try {
-			Plugin::migrate_if_needed();
+			$caller = '';
+			$trace  = debug_backtrace( DEBUG_BACKTRACE_IGNORE_ARGS, 2 ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_debug_backtrace -- The caller name decides whether a read-only ability may migrate.
+			if ( isset( $trace[1]['function'] ) ) {
+				$caller = (string) $trace[1]['function'];
+			}
+			if ( Plugin::migrates_for( $caller ) ) {
+				Plugin::migrate_if_needed();
+			}
 			return call_user_func( $callback );
 		} catch ( \InvalidArgumentException $error ) {
 			return new \WP_Error( 'kirki_mcp_invalid', $error->getMessage() );

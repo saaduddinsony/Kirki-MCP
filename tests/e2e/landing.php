@@ -17,8 +17,10 @@ if ( PHP_SAPI !== 'cli' ) {
 	exit( 1 );
 }
 
-$base     = getenv( 'KIRKI_MCP_URL' ) ?: 'http://127.0.0.1:8080';
-$user     = getenv( 'KIRKI_MCP_USER' ) ?: 'admin';
+$base     = getenv( 'KIRKI_MCP_URL' );
+$user     = getenv( 'KIRKI_MCP_USER' );
+$base     = is_string( $base ) && '' !== $base ? $base : 'http://127.0.0.1:8080';
+$user     = is_string( $user ) && '' !== $user ? $user : 'admin';
 $password = getenv( 'KIRKI_MCP_APP_PASSWORD' );
 if ( ! is_string( $password ) || '' === trim( $password ) ) {
 	fwrite( STDERR, "Set KIRKI_MCP_APP_PASSWORD.\n" );
@@ -53,7 +55,7 @@ function mcp_request( $method, $params = null, $notify = false ) {
 	$headers = array(
 		'Content-Type: application/json',
 		'Accept: application/json, text/event-stream',
-		'Authorization: Basic ' . base64_encode( $user . ':' . $password ),
+		'Authorization: Basic ' . base64_encode( $user . ':' . $password ), // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- HTTP basic auth for the local test server.
 	);
 	if ( $session ) {
 		$headers[] = 'Mcp-Session-Id: ' . $session;
@@ -119,7 +121,7 @@ function ability( $name, array $parameters ) {
 		fwrite( STDERR, "{$name} failed: {$text}\n" );
 		exit( 1 );
 	}
-	echo $name, " ok\n";
+	echo esc_html( $name ), " ok\n";
 	return $data['data'];
 }
 
@@ -154,7 +156,7 @@ curl_setopt(
 	$direct,
 	CURLOPT_HTTPHEADER,
 	array(
-		'Authorization: Basic ' . base64_encode( $user . ':' . $password ),
+		'Authorization: Basic ' . base64_encode( $user . ':' . $password ), // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- HTTP basic auth for the local test server.
 		'Content-Type: image/png',
 		'Content-Disposition: attachment; filename="direct-app-password.png"',
 	)
@@ -169,13 +171,13 @@ if ( 201 !== $direct_code || empty( $direct_json['id'] ) ) {
 	fwrite( STDERR, "Direct wp/v2/media upload failed ({$direct_code}): {$direct_body}\n" );
 	exit( 1 );
 }
-echo "wp/v2/media application-password upload ok id={$direct_json['id']}\n";
+echo 'wp/v2/media application-password upload ok id=' . esc_html( (string) $direct_json['id'] ) . "\n";
 
 $uploaded = ability(
 	'kirki-mcp/upload-media',
 	array(
 		'filename'    => 'northwind-hero.png',
-		'data_base64' => base64_encode( $png ),
+		'data_base64' => base64_encode( $png ), // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- The media ability accepts a base64 file.
 		'alt'         => 'Abstract workshop panel in navy and rust',
 	)
 );
@@ -275,7 +277,7 @@ ability(
 	)
 );
 
-$page = ability(
+$created_page = ability(
 	'kirki-mcp/create-page',
 	array(
 		'title'    => 'Northwind',
@@ -410,7 +412,7 @@ $page = ability(
 $published = ability(
 	'kirki-mcp/publish-page',
 	array(
-		'page_id'   => $page['id'],
+		'page_id'   => $created_page['id'],
 		'set_front' => true,
 	)
 );
@@ -452,4 +454,4 @@ if ( 200 !== $home_code || $missing ) {
 	exit( 1 );
 }
 
-echo "Landing page {$published['permalink']} is live. Editor: {$published['editor_url']}\n";
+echo 'Landing page ' . esc_url( $published['permalink'] ) . ' is live. Editor: ' . esc_url( $published['editor_url'] ) . "\n";

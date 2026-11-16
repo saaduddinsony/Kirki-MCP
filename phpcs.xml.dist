@@ -3,10 +3,15 @@
 	<description>WordPress coding standards for Kirki MCP. Docblock volume and exception-message escaping are excluded: exception strings are returned as WP_Error data for agents, not printed as HTML.</description>
 	<file>includes</file>
 	<file>kirki-mcp.php</file>
+	<file>tests</file>
 	<arg name="extensions" value="php"/>
 	<rule ref="WordPress">
 		<exclude name="Squiz.Commenting.FunctionCommentThrowTag"/>
 		<exclude name="Generic.Commenting.DocComment.MissingShort"/>
 		<exclude name="WordPress.Security.EscapeOutput.ExceptionNotEscaped"/>
+	</rule>
+	<!-- CLI harnesses talk to a local server and write progress to the terminal. -->
+	<rule ref="WordPress.WP.AlternativeFunctions">
+		<exclude-pattern>*/tests/*</exclude-pattern>
 	</rule>
 </ruleset>

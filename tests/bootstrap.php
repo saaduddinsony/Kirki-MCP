@@ -19,6 +19,20 @@ if ( ! function_exists( 'wp_parse_url' ) ) {
 	}
 }
 
+if ( ! function_exists( 'wp_json_encode' ) ) {
+	/**
+	 * Test stand-in for the WordPress function.
+	 *
+	 * @param mixed $data Data.
+	 * @param int   $options Options.
+	 * @param int   $depth Depth.
+	 * @return string|false
+	 */
+	function wp_json_encode( $data, $options = 0, $depth = 512 ) {
+		return json_encode( $data, $options, $depth ); // phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode -- Stub for the unit suite.
+	}
+}
+
 if ( ! function_exists( 'wp_strip_all_tags' ) ) {
 	/**
 	 * Test stand-in for the WordPress function.
@@ -39,3 +53,4 @@ require dirname( __DIR__ ) . '/includes/class-document.php';
 require dirname( __DIR__ ) . '/includes/class-symbol-repository.php';
 require dirname( __DIR__ ) . '/includes/class-page-repository.php';
 require dirname( __DIR__ ) . '/includes/class-global-repository.php';
+require dirname( __DIR__ ) . '/includes/class-plugin.php';

@@ -164,7 +164,7 @@ bash bin/build-zip.sh
 KIRKI_MCP_STAGING_CHECK=1 wp eval-file tests/e2e/staging-check.php
 ```
 
-`tests/e2e/staging-check.php` is for a test install. It refuses to run unless `KIRKI_MCP_STAGING_CHECK` is set. It publishes a page, edits it, publishes again, and temporarily takes the header role, then deletes that page and restores the previous header. The zip is written to `dist/kirki-mcp-0.2.7.zip`.
+`tests/e2e/staging-check.php` is for a test install. It refuses to run unless `KIRKI_MCP_STAGING_CHECK` is set. It publishes a page, edits it, publishes again, and temporarily takes the header role, then deletes that page and restores the previous header. The zip is written to `dist/kirki-mcp-0.2.8.zip`.
 
 ## Known gaps
 

@@ -29,6 +29,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Symbol_Repository {
 
 	/**
+	 * Desktop CSS written on every symbol root this plugin builds.
+	 */
+	const ROOT_STYLE = 'display:flex;flex-direction:column;width:100%;box-sizing:border-box;';
+
+	/**
 	 * Slug a stored symbol name and its section titles.
 	 *
 	 * @param array  $data Symbol meta.
@@ -460,19 +465,36 @@ class Symbol_Repository {
 	 * @param array $data Symbol meta.
 	 * @param int   $post_id Symbol post id.
 	 * @param bool  $explicit The caller named this symbol.
+	 * @param bool  $marker_meta The kirki_mcp_symbol meta is set.
 	 * @return bool
 	 */
-	public static function should_migrate_symbol( array $data, $post_id, $explicit = false ) {
-		if ( $explicit ) {
+	public static function should_migrate_symbol( array $data, $post_id, $explicit = false, $marker_meta = false ) {
+		unset( $post_id );
+		if ( $explicit || $marker_meta || ! empty( $data['kirkiMcp'] ) ) {
 			return true;
 		}
-		if ( ! empty( $data['kirkiMcp'] ) ) {
-			return true;
+		return self::has_plugin_root_style( $data );
+	}
+
+	/**
+	 * The root style this plugin writes. A matching title from the 0.2.6 stamp is not enough:
+	 * that pass also renamed symbols built in Kirki's editor.
+	 *
+	 * @param array $data Symbol meta.
+	 * @return bool
+	 */
+	public static function has_plugin_root_style( array $data ) {
+		$root   = isset( $data['root'] ) ? (string) $data['root'] : 'root';
+		$block  = isset( $data['data'][ $root ] ) && is_array( $data['data'][ $root ] ) ? $data['data'][ $root ] : array();
+		$ids    = isset( $block['styleIds'] ) && is_array( $block['styleIds'] ) ? $block['styleIds'] : array();
+		$styles = isset( $data['styleBlocks'] ) && is_array( $data['styleBlocks'] ) ? $data['styleBlocks'] : array();
+		foreach ( $ids as $style_id ) {
+			$css = isset( $styles[ $style_id ]['variant']['md'] ) ? (string) $styles[ $style_id ]['variant']['md'] : '';
+			if ( false !== strpos( $css, self::ROOT_STYLE ) ) {
+				return true;
+			}
 		}
-		$root  = isset( $data['root'] ) ? (string) $data['root'] : 'root';
-		$title = isset( $data['data'][ $root ]['title'] ) ? (string) $data['data'][ $root ]['title'] : '';
-		$name  = isset( $data['name'] ) ? (string) $data['name'] : '';
-		return '' !== $title && self::root_html_id( $name, $post_id ) === $title;
+		return false;
 	}
 
 	/**
@@ -522,11 +544,12 @@ class Symbol_Repository {
 				foreach ( $posts as $post_id ) {
 					$post_id = (int) $post_id;
 					try {
-						$raw  = get_post_meta( $post_id, 'kirki', true );
-						$next = self::migrate_one( $post_id, $raw, in_array( $post_id, $explicit_ids, true ) );
+						$raw    = Plugin::read_raw_post_meta( $post_id, 'kirki' );
+						$marker = '1' === (string) get_post_meta( $post_id, 'kirki_mcp_symbol', true );
+						$next   = self::migrate_one( $post_id, $raw, in_array( $post_id, $explicit_ids, true ) || $marker );
 						if ( is_array( $raw ) && $next !== $raw ) {
-							Json_Data::update_meta( $post_id, 'kirki', $next );
-							Json_Data::update_meta( $post_id, 'kirki_mcp_symbol', '1' );
+							Plugin::write_raw_post_meta( $post_id, 'kirki', $next );
+							Plugin::write_raw_post_meta( $post_id, 'kirki_mcp_symbol', '1' );
 						}
 					} catch ( \Throwable $error ) {
 						error_log( 'Kirki MCP symbol migration skipped ' . $post_id . ': ' . $error->getMessage() ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
@@ -568,8 +591,16 @@ class Symbol_Repository {
 		}
 		$data['data'][ $new ] = $block;
 		foreach ( $data['data'] as $id => $child ) {
-			if ( is_array( $child ) && isset( $child['parentId'] ) && $child['parentId'] === $old ) {
+			if ( ! is_array( $child ) ) {
+				continue;
+			}
+			if ( isset( $child['parentId'] ) && $child['parentId'] === $old ) {
 				$data['data'][ $id ]['parentId'] = $new;
+			}
+			$href = isset( $child['properties']['attributes']['href'] ) ? $child['properties']['attributes']['href'] : '';
+			$type = isset( $child['properties']['type'] ) ? $child['properties']['type'] : '';
+			if ( 'section' === $type && $href === $old ) {
+				$data['data'][ $id ]['properties']['attributes']['href'] = $new;
 			}
 		}
 		$data['root']     = $new;
@@ -871,7 +902,7 @@ class Symbol_Repository {
 			'name'      => $style_id,
 			'isDefault' => false,
 			'variant'   => array(
-				'md' => 'display:flex;flex-direction:column;width:100%;box-sizing:border-box;',
+				'md' => self::ROOT_STYLE,
 			),
 		);
 

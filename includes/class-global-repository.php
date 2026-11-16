@@ -267,6 +267,69 @@ class Global_Repository {
 	 * @return void
 	 */
 	public static function refresh_symbol_batch() {
+		if ( ! self::claim_refresh_lock() ) {
+			return;
+		}
+		try {
+			self::refresh_symbol_batch_locked();
+		} finally {
+			self::release_refresh_lock();
+		}
+	}
+
+	/**
+	 * Decide whether this request may take the refresh lock.
+	 *
+	 * @param bool $added add_option succeeded.
+	 * @param int  $held_at Timestamp already stored, or 0.
+	 * @param int  $now Current timestamp.
+	 * @param int  $ttl Seconds before a crashed holder is replaced.
+	 * @return string acquired, stolen, or busy.
+	 */
+	public static function refresh_lock_decision( $added, $held_at, $now, $ttl = 60 ) {
+		if ( $added ) {
+			return 'acquired';
+		}
+		$held_at = (int) $held_at;
+		if ( $held_at > 0 && ( (int) $now - $held_at ) > (int) $ttl ) {
+			return 'stolen';
+		}
+		return 'busy';
+	}
+
+	/**
+	 * @return bool
+	 */
+	private static function claim_refresh_lock() {
+		if ( ! function_exists( 'add_option' ) ) {
+			return true;
+		}
+		$now   = time();
+		$added = add_option( 'kirki_mcp_symbol_refresh_lock', (string) $now, '', false );
+		$held  = (int) get_option( 'kirki_mcp_symbol_refresh_lock', 0 );
+		$which = self::refresh_lock_decision( (bool) $added, $held, $now );
+		if ( 'busy' === $which ) {
+			return false;
+		}
+		if ( 'stolen' === $which ) {
+			update_option( 'kirki_mcp_symbol_refresh_lock', (string) $now, false );
+		}
+		return true;
+	}
+
+	/**
+	 * @return void
+	 */
+	private static function release_refresh_lock() {
+		if ( function_exists( 'delete_option' ) ) {
+			delete_option( 'kirki_mcp_symbol_refresh_lock' );
+		}
+	}
+
+	/**
+	 * @return void
+	 */
+	private static function refresh_symbol_batch_locked() {
 		$queue  = get_option( 'kirki_mcp_symbol_refresh_queue', array() );
 		$offset = (int) get_option( 'kirki_mcp_symbol_refresh_offset', 0 );
 		if ( ! is_array( $queue ) || ! $queue ) {

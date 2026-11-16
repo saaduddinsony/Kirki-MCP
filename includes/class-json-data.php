@@ -83,6 +83,9 @@ class Json_Data {
 			return;
 		}
 		update_post_meta( (int) $post_id, $key, self::slash( $value ) );
+		if ( 'kirki' === $key && class_exists( Plugin::class ) ) {
+			Plugin::forget_link_cache( $post_id );
+		}
 	}
 
 	/**

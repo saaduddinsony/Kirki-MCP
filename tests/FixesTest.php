@@ -10,6 +10,7 @@ use KirkiMCP\Document;
 use KirkiMCP\Global_Repository;
 use KirkiMCP\Json_Data;
 use KirkiMCP\Page_Repository;
+use KirkiMCP\Plugin;
 use KirkiMCP\Spec_Compiler;
 use KirkiMCP\Symbol_Repository;
 use PHPUnit\Framework\TestCase;
@@ -252,7 +253,7 @@ class FixesTest extends TestCase {
 			'<object data="data:text/html;base64,PHNjcmlwdD4=">',
 			'<svg><a xlink:href="&#106;avascript:alert(1)">',
 			'<base href="https://evil.example/">',
-			'<link rel="stylesheet" href="https://evil.example/x.css">',
+			'<link rel="stylesheet" href="https://evil.example/x.css">', // phpcs:ignore WordPress.WP.EnqueuedResources.NonEnqueuedStylesheet -- Fixture markup, not a real enqueue.
 			'<style>@import url(https://evil.example/x.css);</style>',
 			'<style></style><script>alert(1)</script>',
 			'<style>a{color:red}</style><p>after</p>',
@@ -574,7 +575,7 @@ class FixesTest extends TestCase {
 	}
 
 	/**
-	 * card-1 is the id Kirki gives the second "Card", so an explicit anchor cannot take it.
+	 * Card-1 is the id Kirki gives the second "Card", so an explicit anchor cannot take it.
 	 */
 	public function test_explicit_anchor_avoids_numbered_repeats() {
 		$ok = Document::from_sections(
@@ -1037,7 +1038,7 @@ class FixesTest extends TestCase {
 	}
 
 	/**
-	 * esc_url_raw keeps apostrophes, and Kirki prints link hrefs inside single quotes.
+	 * Esc_url_raw keeps apostrophes, and Kirki prints link hrefs inside single quotes.
 	 */
 	public function test_link_urls_cannot_break_single_quoted_hrefs() {
 		$payload = "https://example.com/'onmouseover='alert(document.domain)'style='position:fixed;inset:0";
@@ -1297,9 +1298,47 @@ class FixesTest extends TestCase {
 		);
 		$this->assertFalse( Symbol_Repository::should_migrate_symbol( $editor, 4, false ) );
 		$this->assertTrue( Symbol_Repository::should_migrate_symbol( array( 'kirkiMcp' => 1 ), 4, false ) );
+		$this->assertTrue( Symbol_Repository::should_migrate_symbol( $editor, 4, false, true ) );
 		$stamped                          = $editor;
 		$stamped['data']['root']['title'] = Symbol_Repository::root_html_id( 'Mine', 4 );
-		$this->assertTrue( Symbol_Repository::should_migrate_symbol( $stamped, 4, false ) );
+		$this->assertFalse( Symbol_Repository::should_migrate_symbol( $stamped, 4, false ) );
+		$plugin                             = $editor;
+		$plugin['data']['root']['styleIds'] = array( 'style-1' );
+		$plugin['styleBlocks']              = array(
+			'style-1' => array(
+				'variant' => array(
+					'md' => Symbol_Repository::ROOT_STYLE,
+				),
+			),
+		);
+		$this->assertTrue( Symbol_Repository::should_migrate_symbol( $plugin, 4, false ) );
+		$rekeyed = Symbol_Repository::rekey_root(
+			array(
+				'name' => 'Header',
+				'root' => 'root',
+				'data' => array(
+					'root' => array(
+						'id'       => 'root',
+						'name'     => 'section',
+						'title'    => 'Header',
+						'children' => array( 'link' ),
+					),
+					'link' => array(
+						'id'         => 'link',
+						'name'       => 'button',
+						'parentId'   => 'root',
+						'properties' => array(
+							'type'       => 'section',
+							'attributes' => array(
+								'href' => 'root',
+							),
+						),
+					),
+				),
+			),
+			8
+		);
+		$this->assertSame( 'root-8', $rekeyed['data']['link']['properties']['attributes']['href'] );
 		$this->assertTrue( Symbol_Repository::should_migrate_symbol( $editor, 4, true ) );
 		try {
 			Symbol_Repository::migrate_one( 4, (object) array( 'root' => 'root' ), true );
@@ -1307,6 +1346,73 @@ class FixesTest extends TestCase {
 		} catch ( InvalidArgumentException $error ) {
 			$this->assertStringContainsString( 'PHP object', $error->getMessage() );
 		}
+	}
+
+	/**
+	 * A filtered read must not be what the migration compares, or the raw value is never saved.
+	 */
+	public function test_migration_persists_raw_hrefs_not_the_filtered_copy() {
+		$raw      = array(
+			'blocks' => array(
+				'link' => array(
+					'name'       => 'link-text',
+					'properties' => array(
+						'type'       => 'href',
+						'attributes' => array(
+							'href' => "https://example.com/'onmouseover='alert(1)",
+						),
+					),
+				),
+			),
+		);
+		$filtered = Document::harden_kirki_meta( $raw );
+		$this->assertNull( Document::persistable_meta( $filtered ) );
+		$saved = Document::persistable_meta( $raw );
+		$this->assertNotNull( $saved );
+		$this->assertStringNotContainsString( "'", (string) wp_json_encode( $saved ) );
+		$this->assertNull( Document::stage_migration_payload( array( 'publish' => true ), $raw ) );
+		$this->assertNotNull(
+			Document::stage_migration_payload(
+				array(
+					'publish' => false,
+					'version' => 2,
+				),
+				$raw
+			)
+		);
+	}
+
+	/**
+	 * Reading meta must not rewrite hand-written anchors or non-Latin titles.
+	 */
+	public function test_read_hardening_keeps_unicode_titles_and_anchors() {
+		$blocks = array(
+			'who'    => array(
+				'name'       => 'section',
+				'title'      => "Who We're",
+				'properties' => array(
+					'explicitAnchor' => "Who We're",
+				),
+			),
+			'bangla' => array(
+				'name'  => 'section',
+				'title' => 'বাংলা',
+			),
+			'link'   => array(
+				'name'       => 'link-text',
+				'properties' => array(
+					'type'       => 'href',
+					'attributes' => array(
+						'href' => "https://example.com/'onmouseover='alert(1)",
+					),
+				),
+			),
+		);
+		$read   = Document::harden_blocks( $blocks );
+		$this->assertSame( "Who We're", $read['who']['title'] );
+		$this->assertSame( "Who We're", $read['who']['properties']['explicitAnchor'] );
+		$this->assertSame( 'বাংলা', $read['bangla']['title'] );
+		$this->assertStringNotContainsString( "'", $read['link']['properties']['attributes']['href'] );
 	}
 
 	/**
@@ -1325,7 +1431,7 @@ class FixesTest extends TestCase {
 	}
 
 	/**
-	 * symbol_id must be a symbol post.
+	 * Symbol_id must be a symbol post.
 	 */
 	public function test_symbol_id_rejects_other_post_types() {
 		$this->expectException( InvalidArgumentException::class );
@@ -1366,6 +1472,46 @@ class FixesTest extends TestCase {
 			)
 		);
 		$this->assertSame( array( 1, 2, 3 ), $order );
+		$this->assertSame( 'acquired', Global_Repository::refresh_lock_decision( true, time(), time() ) );
+		$this->assertSame( 'busy', Global_Repository::refresh_lock_decision( false, time(), time() ) );
+		$this->assertSame( 'stolen', Global_Repository::refresh_lock_decision( false, time() - 120, time() ) );
+	}
+
+	/**
+	 * Read-only abilities do not migrate, and a duplicate copies every Kirki meta key.
+	 */
+	public function test_reads_do_not_migrate_and_duplicates_copy_kirki_meta() {
+		$this->assertFalse( Plugin::migrates_for( 'get_page' ) );
+		$this->assertFalse( Plugin::migrates_for( 'list_symbols' ) );
+		$this->assertTrue( Plugin::migrates_for( 'create_page' ) );
+		$keys = Page_Repository::duplicate_meta_keys(
+			array(
+				'kirki',
+				'kirki_page_seo_settings',
+				'kirki_used_font_list',
+				'kirki_editor_mode',
+				'_wp_page_template',
+				'_edit_lock',
+			)
+		);
+		$this->assertContains( 'kirki_page_seo_settings', $keys );
+		$this->assertContains( 'kirki_used_font_list', $keys );
+		$this->assertContains( '_wp_page_template', $keys );
+		$this->assertNotContains( 'kirki', $keys );
+		$this->assertNotContains( '_edit_lock', $keys );
+	}
+
+	/**
+	 * A raw class id must be text in the allowed charset.
+	 */
+	public function test_raw_class_ids_are_validated() {
+		$this->assertSame( 'class-9', Spec_Compiler::class_id( 'class-9' ) );
+		try {
+			Spec_Compiler::class_id( array( 'class-9' ) );
+			$this->fail( 'An array class id was accepted.' );
+		} catch ( InvalidArgumentException $error ) {
+			$this->assertStringContainsString( 'must be text', $error->getMessage() );
+		}
 	}
 
 	/**
