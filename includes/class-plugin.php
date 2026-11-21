@@ -29,6 +29,7 @@ class Plugin {
 		add_action( 'admin_init', array( self::class, 'upgrade' ) );
 		add_action( 'kirki_mcp_refresh_symbol_classes', array( Global_Repository::class, 'refresh_symbol_batch' ) );
 		Admin::register();
+		Customizer_Registry::boot();
 	}
 
 	/**

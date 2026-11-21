@@ -7,7 +7,7 @@
 
 define( 'ABSPATH', __DIR__ . '/' );
 if ( ! defined( 'KIRKI_MCP_VERSION' ) ) {
-	define( 'KIRKI_MCP_VERSION', '0.3.0' );
+	define( 'KIRKI_MCP_VERSION', '0.4.0' );
 }
 
 if ( ! function_exists( 'wp_parse_url' ) ) {
@@ -48,6 +48,63 @@ if ( ! function_exists( 'wp_strip_all_tags' ) ) {
 	}
 }
 
+if ( ! isset( $GLOBALS['kirki_mcp_test_options'] ) ) {
+	$GLOBALS['kirki_mcp_test_options'] = array();
+}
+
+if ( ! function_exists( 'get_option' ) ) {
+	/**
+	 * Test stand-in for the WordPress function.
+	 *
+	 * @param string $name Name.
+	 * @param mixed  $default_value Default.
+	 * @return mixed
+	 */
+	function get_option( $name, $default_value = false ) {
+		return array_key_exists( $name, $GLOBALS['kirki_mcp_test_options'] ) ? $GLOBALS['kirki_mcp_test_options'][ $name ] : $default_value;
+	}
+}
+
+if ( ! function_exists( 'update_option' ) ) {
+	/**
+	 * Test stand-in for the WordPress function.
+	 *
+	 * @param string $name Name.
+	 * @param mixed  $value Value.
+	 * @param mixed  $autoload Autoload (unused).
+	 * @return bool
+	 */
+	function update_option( $name, $value, $autoload = true ) {
+		unset( $autoload );
+		$GLOBALS['kirki_mcp_test_options'][ $name ] = $value;
+		return true;
+	}
+}
+
+if ( ! function_exists( 'get_current_user_id' ) ) {
+	/**
+	 * Test stand-in for the WordPress function.
+	 *
+	 * @return int
+	 */
+	function get_current_user_id() {
+		return 0;
+	}
+}
+
+if ( ! function_exists( 'current_user_can' ) ) {
+	/**
+	 * Test stand-in for the WordPress function.
+	 *
+	 * @param string $cap Capability.
+	 * @return bool
+	 */
+	function current_user_can( $cap ) {
+		unset( $cap );
+		return ! empty( $GLOBALS['kirki_mcp_test_can'] );
+	}
+}
+
 require dirname( __DIR__ ) . '/includes/class-css.php';
 require dirname( __DIR__ ) . '/includes/class-json-data.php';
 require dirname( __DIR__ ) . '/includes/class-ids.php';
@@ -61,3 +118,10 @@ require dirname( __DIR__ ) . '/includes/class-compatibility.php';
 require dirname( __DIR__ ) . '/includes/class-ecommerce-repository.php';
 require dirname( __DIR__ ) . '/includes/class-customizer-repository.php';
 require dirname( __DIR__ ) . '/includes/class-collection-repository.php';
+require dirname( __DIR__ ) . '/includes/class-access.php';
+require dirname( __DIR__ ) . '/includes/class-audit.php';
+require dirname( __DIR__ ) . '/includes/class-dynamic-content-repository.php';
+require dirname( __DIR__ ) . '/includes/class-interaction-repository.php';
+require dirname( __DIR__ ) . '/includes/class-customizer-registry.php';
+require dirname( __DIR__ ) . '/includes/class-settings-repository.php';
+require dirname( __DIR__ ) . '/includes/class-template-repository.php';

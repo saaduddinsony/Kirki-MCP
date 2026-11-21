@@ -94,6 +94,38 @@ class Access {
 	}
 
 	/**
+	 * Payment and checkout writes need manage_options plus an explicit site opt-in.
+	 */
+	public static function store_payment_writes_allowed() {
+		if ( ! function_exists( 'get_option' ) ) {
+			return false;
+		}
+		$value = get_option( 'kirki_mcp_allow_store_payment_writes', false );
+		return ( true === $value || 1 === $value || '1' === $value );
+	}
+
+	/**
+	 * Enable or disable payment/checkout writes. Requires manage_options.
+	 *
+	 * @param bool $enabled Enabled.
+	 * @return bool
+	 */
+	public static function set_store_payment_writes( $enabled ) {
+		if ( ! function_exists( 'update_option' ) ) {
+			throw new \RuntimeException( 'WordPress options are not available.' );
+		}
+		update_option( 'kirki_mcp_allow_store_payment_writes', (bool) $enabled, false );
+		return (bool) $enabled;
+	}
+
+	/**
+	 * @return bool
+	 */
+	public static function can_write_store_payments() {
+		return self::can_manage_store() && self::store_payment_writes_allowed();
+	}
+
+	/**
 	 * Custom code is printed raw by Kirki, so it needs unfiltered_html as well as builder access.
 	 *
 	 * @return bool

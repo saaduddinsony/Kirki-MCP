@@ -7,7 +7,7 @@
  * Merchant routes live under /wp-json/kirki/ecommerce/v1/ and, in the plugin
  * source, are gated by AuthMiddleware + AdminMiddleware (manage_options).
  *
- * This class never talks to payment webhooks or gateway-install endpoints.
+ * Incoming payment webhooks and customer password-change stay blocked. Payment and checkout writes need an explicit opt-in.
  *
  * @package KirkiMCP
  */
@@ -165,6 +165,79 @@ class Ecommerce_Repository {
 			array( 'POST', '#^/migration/runs$#' ),
 			array( 'GET', '#^/migration/runs/' . $id . '$#' ),
 			array( 'POST', '#^/migration/runs/' . $id . '/chunk$#' ),
+			array( 'DELETE', '#^/customers/' . $id . '$#' ),
+			array( 'POST', '#^/currencies$#' ),
+			array( 'PUT', '#^/currencies$#' ),
+			array( 'DELETE', '#^/currencies/' . $id . '$#' ),
+			array( 'GET', '#^/currency-exchange/providers$#' ),
+			array( 'POST', '#^/currency-exchange/sync$#' ),
+			array( 'POST', '#^/orders/' . $id . '/refunds$#' ),
+			array( 'PUT', '#^/orders/' . $id . '/refunds/' . $id . '$#' ),
+			array( 'DELETE', '#^/orders/' . $id . '/refunds/' . $id . '$#' ),
+			array( 'POST', '#^/orders/' . $id . '/activities$#' ),
+			array( 'GET', '#^/settings/email/' . $codes . '/' . $codes . '/' . $codes . '/preview$#' ),
+			array( 'POST', '#^/settings/email/' . $codes . '/' . $codes . '/' . $codes . '/preview/test-mail$#' ),
+			array( 'POST', '#^/settings/email/' . $codes . '/' . $codes . '/' . $codes . '/restore$#' ),
+			array( 'POST', '#^/onboarding/sample-data$#' ),
+			array( 'POST', '#^/products/bulk$#' ),
+			array( 'POST', '#^/orders/bulk$#' ),
+			array( 'POST', '#^/coupons/bulk$#' ),
+			array( 'GET', '#^/cart$#' ),
+			array( 'POST', '#^/cart/items$#' ),
+			array( 'PUT', '#^/cart/items/' . $id . '$#' ),
+			array( 'DELETE', '#^/cart/items/' . $id . '$#' ),
+			array( 'DELETE', '#^/cart$#' ),
+			array( 'PUT', '#^/cart$#' ),
+			array( 'POST', '#^/cart/coupon$#' ),
+			array( 'DELETE', '#^/cart/coupon$#' ),
+			array( 'POST', '#^/checkout$#' ),
+			array( 'PUT', '#^/payment-methods/order$#' ),
+			array( 'GET', '#^/online-payments/installable$#' ),
+			array( 'GET', '#^/online-payments/' . $id . '$#' ),
+			array( 'POST', '#^/online-payments/install$#' ),
+			array( 'POST', '#^/online-payments/update$#' ),
+			array( 'PUT', '#^/online-payments/' . $id . '$#' ),
+			array( 'PATCH', '#^/online-payments/' . $id . '$#' ),
+			array( 'DELETE', '#^/online-payments/' . $id . '$#' ),
+			array( 'POST', '#^/offline-payments$#' ),
+			array( 'PUT', '#^/offline-payments/' . $id . '$#' ),
+			array( 'PATCH', '#^/offline-payments/' . $id . '$#' ),
+			array( 'DELETE', '#^/offline-payments/' . $id . '$#' ),
+			array( 'POST', '#^/tags/bulk$#' ),
+			array( 'POST', '#^/brands/bulk$#' ),
+			array( 'POST', '#^/categories/bulk$#' ),
+			array( 'POST', '#^/collections/bulk$#' ),
+			array( 'POST', '#^/attributes/bulk$#' ),
+			array( 'DELETE', '#^/attributes/' . $id . '/values/' . $id . '$#' ),
+			array( 'POST', '#^/attributes/' . $id . '/values/bulk$#' ),
+			array( 'POST', '#^/attributes/' . $id . '/values/batch$#' ),
+			array( 'POST', '#^/customers/bulk$#' ),
+			array( 'POST', '#^/currencies/bulk$#' ),
+			array( 'POST', '#^/tax-profiles/bulk$#' ),
+			array( 'POST', '#^/shipping-boxes/bulk$#' ),
+			array( 'POST', '#^/shipping-profiles/bulk$#' ),
+			array( 'POST', '#^/products/' . $id . '/duplicate$#' ),
+			array( 'POST', '#^/onboarding$#' ),
+			array( 'GET', '#^/setup-checklist$#' ),
+			array( 'POST', '#^/setup-checklist/' . $codes . '/complete$#' ),
+			array( 'GET', '#^/home/first-sale$#' ),
+			array( 'POST', '#^/home/first-sale/' . $codes . '$#' ),
+			array( 'GET', '#^/shipping-carriers/last-used$#' ),
+			array( 'DELETE', '#^/orders/' . $id . '/activities/' . $id . '$#' ),
+			array( 'GET', '#^/pages$#' ),
+			array( 'POST', '#^/pages/fix$#' ),
+			array( 'GET', '#^/shop/products$#' ),
+			array( 'PUT', '#^/profile$#' ),
+			array( 'GET', '#^/addresses(?:/' . $id . ')?$#' ),
+			array( 'POST', '#^/addresses$#' ),
+			array( 'PUT', '#^/addresses/' . $id . '$#' ),
+			array( 'DELETE', '#^/addresses/' . $id . '$#' ),
+			array( 'PATCH', '#^/addresses/' . $id . '/set-default$#' ),
+			array( 'GET', '#^/wishlist$#' ),
+			array( 'POST', '#^/wishlist$#' ),
+			array( 'DELETE', '#^/wishlist/' . $id . '$#' ),
+			array( 'DELETE', '#^/wishlist/empty$#' ),
+			array( 'POST', '#^/resend-verification-email$#' ),
 		);
 	}
 
@@ -174,16 +247,45 @@ class Ecommerce_Repository {
 	 * @param string $method HTTP method.
 	 * @param string $path Path under the namespace, e.g. /products.
 	 * @param array  $params Query or JSON body.
+	 * @param array  $options Options, including dry_run.
 	 * @return array
 	 */
-	public static function request( $method, $path, array $params = array() ) {
-		if ( ! self::installed() ) {
+	public static function request( $method, $path, array $params = array(), array $options = array() ) {
+		$dry = ! empty( $options['dry_run'] );
+		if ( ! $dry && ! self::installed() ) {
 			throw new \RuntimeException( 'Kirki eCommerce is not installed or not active. Install the free kirki-ecommerce plugin from WordPress.org, then retry. The builder plugin is not required.' );
 		}
 		$method = strtoupper( (string) $method );
 		$path   = self::normalize_path( $path );
 		if ( ! self::is_allowed_route( $method, $path ) ) {
-			throw new \InvalidArgumentException( 'That Kirki eCommerce route is not available through Kirki MCP. Catalog, orders, coupons, customers, shipping, tax, settings, and analytics reads are allowed. Payment webhooks, gateway installs, password changes, and webhook endpoints are not.' );
+			throw new \InvalidArgumentException( 'That Kirki eCommerce route is not available through Kirki MCP. Password-change and payment webhook endpoints stay blocked. Other catalog, order, cart, checkout, and payment routes are allowlisted; payment and checkout writes need the store payment-writes opt-in.' );
+		}
+		$sensitive = self::is_sensitive_route( $method, $path );
+		$is_write  = ! in_array( $method, array( 'GET', 'HEAD' ), true );
+		if ( $sensitive && $is_write && ! Access::can_write_store_payments() && ! $dry ) {
+			throw new \InvalidArgumentException( 'Payment, checkout, cart, and gateway-install writes are read-only until an administrator enables kirki_mcp_allow_store_payment_writes (set-store-payment-writes). Use dry_run: true to preview a call.' );
+		}
+		if ( $is_write && $sensitive ) {
+			$params = self::keep_write_only_secrets( $params );
+		}
+		if ( $dry ) {
+			Audit::record(
+				'ecommerce-dry-run',
+				array(
+					'method'     => $method,
+					'path'       => $path,
+					'sensitive'  => $sensitive,
+					'param_keys' => array_keys( $params ),
+				)
+			);
+			return array(
+				'dry_run'    => true,
+				'method'     => $method,
+				'path'       => $path,
+				'sensitive'  => $sensitive,
+				'would_call' => true,
+				'body'       => self::redact( $params ),
+			);
 		}
 		if ( ! class_exists( '\WP_REST_Request' ) || ! function_exists( 'rest_do_request' ) ) {
 			throw new \RuntimeException( 'WordPress REST is not available.' );
@@ -210,7 +312,90 @@ class Ecommerce_Repository {
 			}
 			throw new \RuntimeException( $message );
 		}
-		return is_array( $data ) ? $data : array( 'data' => $data );
+		if ( $is_write || $sensitive ) {
+			Audit::record(
+				'ecommerce-request',
+				array(
+					'method'    => $method,
+					'path'      => $path,
+					'sensitive' => $sensitive,
+					'status'    => $status,
+				)
+			);
+		}
+		$data = is_array( $data ) ? $data : array( 'data' => $data );
+		return self::redact( $data );
+	}
+
+	/**
+	 * Payment, checkout, cart, and gateway-install routes.
+	 *
+	 * @param string $method Method.
+	 * @param string $path Path.
+	 * @return bool
+	 */
+	public static function is_sensitive_route( $method, $path ) {
+		$method = strtoupper( (string) $method );
+		$path   = self::normalize_path( $path );
+		$rules  = array(
+			'#^/cart#',
+			'#^/checkout#',
+			'#^/payment-methods#',
+			'#^/online-payments#',
+			'#^/offline-payments#',
+		);
+		foreach ( $rules as $rule ) {
+			if ( 1 === preg_match( $rule, $path ) ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Strip secret values from a payload or response. Keys stay, values become true write-only markers on the way out.
+	 *
+	 * @param mixed $data Data.
+	 * @return mixed
+	 */
+	public static function redact( $data ) {
+		if ( ! is_array( $data ) ) {
+			return $data;
+		}
+		$out = array();
+		foreach ( $data as $key => $value ) {
+			$name = is_string( $key ) ? strtolower( $key ) : '';
+			if ( $name && self::is_secret_key( $name ) ) {
+				$out[ $key ] = '[redacted]';
+				continue;
+			}
+			$out[ $key ] = is_array( $value ) ? self::redact( $value ) : $value;
+		}
+		return $out;
+	}
+
+	/**
+	 * @param string $name Key.
+	 * @return bool
+	 */
+	public static function is_secret_key( $name ) {
+		$name = strtolower( (string) $name );
+		foreach ( array( 'password', 'secret', 'private_key', 'api_key', 'apikey', 'webhook', 'access_token', 'client_secret', 'clientid', 'client_id', 'publishable_key', 'secret_key', 'license_key' ) as $needle ) {
+			if ( false !== strpos( $name, $needle ) ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Keep secret fields for a write (they are sent, never echoed back).
+	 *
+	 * @param array $params Params.
+	 * @return array
+	 */
+	private static function keep_write_only_secrets( array $params ) {
+		return $params;
 	}
 
 	/**
