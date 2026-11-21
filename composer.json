@@ -1,0 +1,13 @@
+{
+	"name": "kirki-mcp/kirki-mcp",
+	"description": "Development checks for the Kirki MCP plugin. The WordPress plugin itself has no Composer dependencies.",
+	"require-dev": {
+		"squizlabs/php_codesniffer": "^3.13",
+		"wp-coding-standards/wpcs": "^3.1"
+	},
+	"config": {
+		"allow-plugins": {
+			"dealerdirect/phpcodesniffer-composer-installer": true
+		}
+	}
+}
