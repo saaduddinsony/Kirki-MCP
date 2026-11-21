@@ -4,7 +4,7 @@ Tags: kirki, mcp, ai, page-builder, abilities
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.3.0
+Stable tag: 0.4.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -47,7 +47,7 @@ No. Kirki renders the pages. This plugin writes the design data Kirki already un
 
 = Which Kirki versions are supported? =
 
-Kirki 6.4.x only. It was tested with 6.4.2. Kirki 6.5 and 7 are not supported. Forms, navigation, lists, and inline links can be generated.
+Kirki 6.4.x only. It was tested with 6.4.3. Kirki 6.5 and 7 are not supported. Forms, navigation, lists, and inline links can be generated.
 
 = Can an agent publish a page? =
 

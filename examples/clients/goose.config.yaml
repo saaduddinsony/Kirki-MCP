@@ -1,0 +1,16 @@
+# Copy into ~/.config/goose/config.yaml under the existing extensions: map.
+# Official Goose docs: https://github.com/block/goose (using-extensions.md)
+# Streamable HTTP is documented, but a Basic Authorization header is not shown
+# on that page, so this verified recipe uses the WordPress stdio bridge.
+extensions:
+  kirki:
+    name: Kirki
+    cmd: npx
+    args: ["-y", "@automattic/mcp-wordpress-remote"]
+    enabled: true
+    envs:
+      WP_API_URL: "https://YOUR_SITE_URL/wp-json/mcp/mcp-adapter-default-server"
+      WP_API_USERNAME: "YOUR_USERNAME"
+      WP_API_PASSWORD: "YOUR_APP_PASSWORD"
+    type: stdio
+    timeout: 300

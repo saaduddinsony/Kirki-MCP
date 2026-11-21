@@ -52,16 +52,18 @@ One-click install badges are listed only where the vendor documents them. Cursor
 | Warp | `~/.warp/.mcp.json` or project `.warp/.mcp.json` | [Warp MCP](https://docs.warp.dev/knowledge-and-collaboration/mcp) | `examples/clients/warp.mcp.json` | `mcpServers` with `url` and `headers`. |
 | LM Studio | In-app Program tab → Install → Edit `mcp.json` | [LM Studio MCP](https://lmstudio.ai/docs/app/plugins/mcp) | `examples/clients/lmstudio.mcp.json` | Follows Cursor `mcpServers` notation, including `url` and `headers`. |
 | Augment | Augment MCP settings / `mcpServers` | [Augment MCP](https://docs.augmentcode.com/setup-augment/mcp) | `examples/clients/augment.mcp.json` | HTTP servers use `"type": "http"`, `url`, and `headers`. |
+| Amazon Q Developer (CLI and IDE) | Legacy `~/.aws/amazonq/mcp.json` or workspace `.amazonq/mcp.json`; IDE also writes `~/.aws/amazonq/default.json` / `.amazonq/default.json`; CLI agents also live under `~/.aws/amazonq/cli-agents` | [Using MCP with Amazon Q Developer](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/qdev-mcp.html), [MCP configuration in the CLI](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-mcp-config-CLI.html), [MCP configuration for Q Developer in the IDE](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/mcp-ide.html) | `examples/clients/amazonq.mcp.json`, `examples/clients/amazonq-http.json` | Official CLI HTTP schema is `"type": "http"` plus `url`. That page documents OAuth or an open (unauthenticated) remote server, not application-password Basic headers. For a WordPress application password, use the stdio bridge in `amazonq.mcp.json` (command/args/env, as in the official agent `mcpServers` format), or add the HTTP server in the IDE UI and fill **Headers** with `Authorization: Basic YOUR_BASIC_CREDENTIAL` (optional Headers are documented on the IDE page). |
+| Trae | Add MCP servers in the Trae UI (`Add > Create Manually`) with a JSON snippet | [MCP overview](https://docs.trae.ai/ide/model-context-protocol), [Add MCP servers](https://docs.trae.ai/ide/add-mcp-servers) | `examples/clients/trae.mcp.json` | Official HTTP schema is `mcpServers` with `url` and optional `headers`. Streamable HTTP is a supported transport. Paste the example JSON, substituting your Basic credential. |
+| Goose | `~/.config/goose/config.yaml` (`extensions` map) | [Using extensions (Goose)](https://github.com/block/goose/blob/main/documentation/docs/guides/using-extensions.md) | `examples/clients/goose.config.yaml` | Official remote transport is `type: streamable_http` with `uri`. That page does not document a Basic `Authorization` header, so the shipped recipe is the official stdio extension shape (`cmd`, `args`, `envs`, `type: stdio`) wrapping `@automattic/mcp-wordpress-remote`. |
 
-### Not verified from official pages in this release
+### Auth notes for Amazon Q, Trae, and Goose
 
-These were requested, but an official, current configuration schema could not be confirmed from a usable vendor page (empty, JS-rendered, or unreachable at documentation time). No guessed config is shipped:
+Those three clients are now documented from official vendor pages (see the table). Two limits are called out rather than guessed:
 
-- **Amazon Q Developer** — [AWS page](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/mcp.html) did not yield a usable schema in the fetched document.
-- **Trae** — [Trae MCP page](https://docs.trae.ai/ide/model-context-protocol) was not usable as fetched.
-- **Goose** — official documentation URLs were not reachable at documentation time.
+- Amazon Q CLI remote HTTP examples use `"type": "http"` and `url`, and describe OAuth or an open server. A Basic application-password header is not shown on the CLI page. Use `examples/clients/amazonq.mcp.json` (stdio bridge) or the IDE **Headers** field.
+- Goose documents `streamable_http` with a `uri`, plus OAuth client fields, but not a Basic header. Use `examples/clients/goose.config.yaml`.
 
-If you use one of those clients, follow its current vendor docs, or use the stdio bridge in `examples/clients/stdio-mcp-wordpress-remote.json` when the client only starts local processes.
+The shared stdio bridge remains `examples/clients/stdio-mcp-wordpress-remote.json`.
 
 ## VS Code official one-click / CLI
 

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.0
+
+- Closes the remaining 0.3.0 product gaps for Kirki 6.4.3, Kirki Pro 6.4.3, and Kirki eCommerce 1.0.2. The matrix is `docs/GAPS.md`.
+- Template export/import: site packs go through Kirki `TemplateExport` / `TemplateImport`; single pages use a `kirki-data.json` zip. Import requires `confirm: true` and creates a draft unless a `page_id` is supplied.
+- Official CloudFront premium and pre-built catalogs can be listed and imported (`list-premium-templates`, `list-prebuilt-templates`, `apply-catalog-template`). Catalog assets are not redistributed. A stored Pro license is used in memory only if a download fails, and is never returned.
+- Dynamic content and interaction timelines can be written on elements (`list-dynamic-content-fields`, `set-dynamic-content`, `set-interactions`, `set-interaction-library`) using the free 6.4 + Pro editor data format, with allowlisted types and events.
+- MCP-owned Customizer registry: `register-customizer-panel`, `register-customizer-section`, `register-customizer-field`, `unregister-customizer-item`, `list-customizer-registry`. Entries are stored in `kirki_mcp_customizer_registry` and re-applied on `init`. `export-settings` / `import-settings` dump safe theme mods, registered options, and that registry.
+- Kirki eCommerce payment, checkout, cart, and gateway-install writes are allowlisted but default to read-only until `set-store-payment-writes` enables `kirki_mcp_allow_store_payment_writes`. Credential fields are write-only and redacted on GET. `dry_run` previews a call. Writes are recorded in `list-audit-log` without secret values. Incoming payment webhooks and customer password-change stay blocked.
+- Remaining merchant routes from the 1.0.2 admin API are allowlisted: refunds, currency writes, customer delete, email test/restore, bulk actions, sample-data onboarding, profile/addresses/wishlist.
+- `get-site-context` reports `kirki_pro_plugin` (installed/version/licensed) separately from a valid license, plus `store_payment_writes`.
+- Verified client setup for Amazon Q Developer, Trae, and Goose from official vendor docs (`docs/CLIENTS.md`, `examples/clients/amazonq.mcp.json`, `amazonq-http.json`, `trae.mcp.json`, `goose.config.yaml`). Amazon Q CLI HTTP Basic and Goose `streamable_http` Basic headers are not guessed; those clients get the official stdio-bridge shape.
+- Unit tests: 92 tests / 514 assertions (PHPUnit, no WordPress install). Live MCP HTTP/JSON-RPC coverage is run against a local WordPress.
+- License remains GPL-2.0-or-later. Copyright: S M Saad Uddin. Kirki Pro is not bundled.
+
+
 ## 0.3.0
 
 - MCP client setup for Claude Code, Claude Desktop, Cursor, VS Code (GitHub Copilot agent mode), Windsurf, Google Antigravity, Kilo Code, Cline, Roo Code, OpenCode (V2 `mcp.servers`), Continue, Zed, JetBrains AI Assistant / Junie, Gemini CLI, OpenAI Codex CLI, Warp, LM Studio, and Augment. Ready-to-copy files live in `examples/clients/`. The compatibility table and transport notes are in `docs/CLIENTS.md`. Amazon Q Developer, Trae, and Goose are listed as unverified because official pages were not usable at documentation time. One-click install is documented only where a vendor officially supports it (`code --add-mcp` for VS Code).
@@ -13,8 +28,6 @@
 - Builder abilities stay limited to Kirki 6.4.x. MCP Adapter is the only hard plugin dependency, so a site can use the eCommerce and Customizer tools without a supported Kirki builder.
 - Unit tests cover the new compiler types, the eCommerce allowlist (including rejected webhook/install routes), option-key blocks, Pro detection when the helper is absent, and Content Manager route allowlists.
 - Copyright: S M Saad Uddin. License remains GPL-2.0-or-later.
-
-## 0.2.9
 
 ## 0.2.9
 

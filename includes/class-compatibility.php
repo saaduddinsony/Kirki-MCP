@@ -96,4 +96,23 @@ class Compatibility {
 		}
 		return false;
 	}
+
+	/**
+	 * Whether the Kirki Pro plugin (kirki-pro) is loaded. Does not imply a valid license.
+	 *
+	 * @return bool
+	 */
+	public static function pro_plugin_installed() {
+		return defined( 'KIRKI_PRO_VERSION' )
+			|| class_exists( '\KirkiProMain' )
+			|| class_exists( 'KirkiProDependencyChecker' )
+			|| class_exists( '\KirkiProDependencyChecker' );
+	}
+
+	/**
+	 * @return string
+	 */
+	public static function pro_plugin_version() {
+		return defined( 'KIRKI_PRO_VERSION' ) ? (string) KIRKI_PRO_VERSION : '';
+	}
 }

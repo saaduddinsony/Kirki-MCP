@@ -13,7 +13,7 @@ Pages are stored in the same post meta Kirki's editor writes (`kirki` for the el
 - WordPress 6.9 or newer
 - PHP 7.4 or newer
 - The [MCP Adapter](https://wordpress.org/plugins/mcp-adapter/) plugin
-- Kirki 6.4.x for visual-builder abilities (tested with 6.4.2; 6.5 and 7 are not supported)
+- Kirki 6.4.x for visual-builder abilities (tested with 6.4.3; 6.5 and 7 are not supported)
 - Optional: Kirki Pro (detected at runtime; this plugin never returns the license key)
 - Optional: [Kirki eCommerce](https://wordpress.org/plugins/kirki-ecommerce/) 1.0.x (standalone; the Kirki builder is not required)
 
@@ -64,8 +64,9 @@ Placeholders are `YOUR_SITE_URL`, `YOUR_USERNAME`, `YOUR_APP_PASSWORD`, and `YOU
 | Warp | `examples/clients/warp.mcp.json` | [Warp MCP](https://docs.warp.dev/knowledge-and-collaboration/mcp) |
 | LM Studio | `examples/clients/lmstudio.mcp.json` | [LM Studio MCP](https://lmstudio.ai/docs/app/plugins/mcp) |
 | Augment | `examples/clients/augment.mcp.json` | [Augment MCP](https://docs.augmentcode.com/setup-augment/mcp) |
-
-Amazon Q Developer, Trae, and Goose are not given a guessed config in this release; see `docs/CLIENTS.md`.
+| Amazon Q Developer | `examples/clients/amazonq.mcp.json`, `examples/clients/amazonq-http.json` | [Amazon Q MCP](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/qdev-mcp.html) |
+| Trae | `examples/clients/trae.mcp.json` | [Add MCP servers](https://docs.trae.ai/ide/add-mcp-servers) |
+| Goose | `examples/clients/goose.config.yaml` | [Goose extensions](https://github.com/block/goose/blob/main/documentation/docs/guides/using-extensions.md) |
 
 ### VS Code official installer
 
@@ -81,7 +82,7 @@ If a client can only start a local process, use [`@automattic/mcp-wordpress-remo
 
 | Ability | What it does |
 | --- | --- |
-| `kirki-mcp/get-site-context` | Viewports, variables, classes, symbols, plus `kirki_pro` and `kirki_ecommerce` status |
+| `kirki-mcp/get-site-context` | Viewports, variables, classes, symbols, plus `kirki_pro`, `kirki_pro_plugin`, `kirki_ecommerce`, and `store_payment_writes` |
 | `kirki-mcp/get-element-schema` | Spec the compiler accepts |
 | `kirki-mcp/list-pages` | Pages, Kirki pages by default |
 | `kirki-mcp/get-page` | Compact tree, styles, editor URL |
@@ -108,6 +109,19 @@ If a client can only start a local process, use [`@automattic/mcp-wordpress-remo
 | `kirki-mcp/create-symbol` | Header, footer, or component |
 | `kirki-mcp/update-symbol` | Rename, reassign the role, or replace sections |
 | `kirki-mcp/list-templates` | `kirki_template` posts |
+| `kirki-mcp/export-site-template` | Start a Kirki site pack export |
+| `kirki-mcp/process-template-export` | Advance the site pack export queue |
+| `kirki-mcp/export-page-template` | Write a `kirki-data.json` page zip |
+| `kirki-mcp/preview-template-zip` | Inspect a local site or page pack |
+| `kirki-mcp/import-template-zip` | Import a local zip. Requires `confirm: true` |
+| `kirki-mcp/process-template-import` | Advance a site pack import queue |
+| `kirki-mcp/list-premium-templates` | Official CloudFront premium catalog (metadata only) |
+| `kirki-mcp/list-prebuilt-templates` | Official CloudFront pre-built catalogs |
+| `kirki-mcp/apply-catalog-template` | Download and import a catalog item. Requires `confirm: true` |
+| `kirki-mcp/list-dynamic-content-fields` | Official dynamic content field catalog |
+| `kirki-mcp/set-dynamic-content` | Write or clear `properties.dynamicContent` |
+| `kirki-mcp/set-interactions` | Write or clear `properties.interactions` |
+| `kirki-mcp/set-interaction-library` | Write or clear `properties.interactionLibrary` |
 | `kirki-mcp/list-popups` | `kirki_popup` posts |
 | `kirki-mcp/get-popup` | One popup |
 | `kirki-mcp/create-popup` | Popup from the same section spec as pages |
@@ -123,9 +137,18 @@ If a client can only start a local process, use [`@automattic/mcp-wordpress-remo
 | `kirki-mcp/list-customizer-fields` | Fields registered in PHP by Kirki or a theme |
 | `kirki-mcp/list-changesets` | `customize_changeset` posts |
 | `kirki-mcp/publish-changeset` | Publish a changeset. Requires `confirm: true` |
+| `kirki-mcp/list-customizer-registry` | MCP-owned Customizer panels, sections, and fields |
+| `kirki-mcp/register-customizer-panel` | Persist and apply a Customizer panel |
+| `kirki-mcp/register-customizer-section` | Persist and apply a Customizer section |
+| `kirki-mcp/register-customizer-field` | Persist and apply a Customizer field |
+| `kirki-mcp/unregister-customizer-item` | Remove an MCP registry item. Requires `confirm: true` |
+| `kirki-mcp/export-settings` | Safe theme mods, registered options, and the MCP registry |
+| `kirki-mcp/import-settings` | Import a settings dump. Requires `confirm: true` |
 | `kirki-mcp/ecommerce-status` | Whether Kirki eCommerce is installed |
-| `kirki-mcp/ecommerce-get` | Allowlisted kirki/ecommerce/v1 GET |
-| `kirki-mcp/ecommerce-mutate` | Allowlisted eCommerce POST/PUT/PATCH/DELETE. DELETE requires `confirm: true` |
+| `kirki-mcp/ecommerce-get` | Allowlisted kirki/ecommerce/v1 GET (secrets redacted) |
+| `kirki-mcp/ecommerce-mutate` | Allowlisted eCommerce POST/PUT/PATCH/DELETE. DELETE requires `confirm: true`. Payment writes need the opt-in or `dry_run` |
+| `kirki-mcp/set-store-payment-writes` | Enable or disable payment/checkout/cart writes |
+| `kirki-mcp/list-audit-log` | Recent MCP write events, without credential values |
 
 The compiler accepts `video`, `slider`, and `tabs` in addition to the 0.2.x element types. See `get-element-schema`. The coverage matrix is [docs/GAPS.md](docs/GAPS.md).
 
@@ -157,7 +180,7 @@ Checked against Kirki 6.4.2:
 
 - Creating and editing symbols is not in `/wp-json/kirki/v1`. Kirki still does that through `admin-ajax.php` (`save-user-saved-symbol-data` and `update-user-saved-symbol-data`), and that handler requires a `wp_rest` nonce. An application password does not send one. New symbols go through Kirki's `SymbolManager`. Updates are written by this plugin as JSON arrays, because `SymbolManager` always inserts a new symbol.
 - Kirki's media route is `GET /wp-json/kirki/v1/media` only. Uploads are the ajax action `upload-media`, which has the same nonce requirement. `kirki-mcp/upload-media` stores the file with WordPress core `POST /wp/v2/media`. You can also post to that endpoint directly with the same application password, then pass the attachment id to an image element.
-- `Template::save_template_data()` saves with staging left off, so it would overwrite published meta. This plugin does not call it.
+- `Template::save_template_data()` saves with staging left off, so it would overwrite published meta. Page-pack imports go through `Page_Repository::save` (draft by default). Overwriting a published page still requires `confirm: true`.
 - Edits to a page that is already published are stored on a new unpublished Kirki stage. The live page stays as it was until `publish-page`. That ability copies the stage onto published post meta and then asks Kirki to record the version. Kirki's own publish helper only fills empty published keys, so copying first is required. Drafts are written to post meta because they are not public yet.
 - A new header or footer is validated and saved before the previous symbol loses that role.
 - Agent input is JSON. The plugin does not call `unserialize()` or `maybe_unserialize()`. If post meta comes back as a PHP object, it is refused. WordPress has already unserialized its own meta storage by then; this is a guard against using that value, not a way to stop WordPress reading its database.
@@ -172,7 +195,7 @@ Application passwords are a WordPress core feature. On a live site they require 
 - Section titles and symbol names are limited to letters, numbers, spaces, dots, underscores, and hyphens. Kirki prints a section title as `id="…"` with no escaping.
 - Kirki prints a custom font's `fontUrl`, or its `localUrl` when one is set, into a stylesheet link without escaping. New URLs are checked before they are stored. URLs already stored, including ones saved by Kirki's own font screen, are passed through `esc_url_raw` on the way out, via the `get_post_metadata` filter, before Kirki prints them. `audit-unsafe-titles` lists section titles and symbol names that were stored before that character limit and have not been saved again.
 - Updating a global class through this plugin refreshes the copy stored on symbols that use it, 20 symbols at a time, header and footer first. The rest continue on a single scheduled follow-up. Kirki's own class screen writes through its database layer and does not notify the plugin, so those edits are copied the next time `upsert-global-class` or `reapply-global-classes` runs. `reapply-global-classes` with `symbol_id` updates that one symbol and also strips default local CSS.
-- `remove-element`, `trash-page`, `trash-popup`, Content Manager and eCommerce DELETE, and `publish-changeset` refuse to run unless `confirm` is `true`.
+- `remove-element`, `trash-page`, `trash-popup`, Content Manager and eCommerce DELETE, `publish-changeset`, template/catalog import, settings import, and Customizer unregister refuse to run unless `confirm` is `true`. Payment, checkout, cart, and gateway-install writes also need `kirki_mcp_allow_store_payment_writes` (or `dry_run: true`).
 - Edits to a published page stay on an unpublished Kirki stage until `publish-page`. Drafts are saved in post meta. `writing_to` on each page response says which of the two happened.
 
 ## Development
@@ -183,14 +206,13 @@ bash bin/build-zip.sh
 KIRKI_MCP_STAGING_CHECK=1 wp eval-file tests/e2e/staging-check.php
 ```
 
-`tests/e2e/staging-check.php` is for a test install. It refuses to run unless `KIRKI_MCP_STAGING_CHECK` is set. It publishes a page, edits it, publishes again, and temporarily takes the header role, then deletes that page and restores the previous header. The zip is written to `dist/kirki-mcp-0.3.0.zip`.
+`tests/e2e/staging-check.php` is for a test install. It refuses to run unless `KIRKI_MCP_STAGING_CHECK` is set. It publishes a page, edits it, publishes again, and temporarily takes the header role, then deletes that page and restores the previous header. The zip is written to `dist/kirki-mcp-0.4.0.zip`.
 
 ## Known gaps
 
-The full before/after matrix is [docs/GAPS.md](docs/GAPS.md). Remaining gaps in 0.3.0:
+The full before/after matrix is [docs/GAPS.md](docs/GAPS.md). Remaining honest limitations in 0.4.0:
 
-- Template ZIP import is not implemented. Existing `kirki_template` posts can be listed. Import is skipped because Kirki can overwrite published meta.
-- New Customizer panels, sections, and controls cannot be registered at runtime; only stored values and already-registered fields are available.
-- Advertised Kirki Pro dynamic content, the full interaction timeline, and premium template packs are not written. Pro is detected (`kirki_pro`); the license key is never returned.
-- Kirki eCommerce payment webhooks, gateway installs, credential writes, checkout, and password changes are intentionally not exposed.
-- Supported builder range is Kirki `>= 6.4.0` and `< 6.5.0`, tested against 6.4.2. `kirki_mcp_supported_kirki_range` can widen it after you have checked that build. The stored JSON is not a public schema.
+- Incoming Kirki eCommerce payment webhooks and customer password-change stay blocked.
+- Some official premium template zips may require a stored Kirki Pro license on the site. Catalog listing does not. The license key is never returned.
+- Supported builder range is Kirki `>= 6.4.0` and `< 6.5.0`, tested against 6.4.3 (free + Pro add-on, unlicensed) and Kirki eCommerce 1.0.2. `kirki_mcp_supported_kirki_range` can widen it after you have checked that build. The stored JSON is not a public schema.
+- Amazon Q CLI official HTTP examples do not show a Basic application-password header; Goose official `streamable_http` examples do not either. Those clients use the documented stdio bridge. Trae’s official `headers` schema is shipped.

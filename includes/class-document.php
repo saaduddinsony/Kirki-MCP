@@ -1126,4 +1126,70 @@ class Document {
 		}
 		return false;
 	}
+
+	/**
+	 * Store a validated dynamic-content binding on an element.
+	 *
+	 * @param string $id Element id.
+	 * @param array  $binding Binding, or empty to clear.
+	 * @return void
+	 */
+	public function set_dynamic_content( $id, $binding ) {
+		$this->assert_exists( $id );
+		if ( 'root' === $id ) {
+			throw new \InvalidArgumentException( 'The root element cannot be edited.' );
+		}
+		if ( ! isset( $this->blocks[ $id ]['properties'] ) || ! is_array( $this->blocks[ $id ]['properties'] ) ) {
+			$this->blocks[ $id ]['properties'] = array();
+		}
+		if ( ! $binding ) {
+			unset( $this->blocks[ $id ]['properties']['dynamicContent'] );
+			return;
+		}
+		$this->blocks[ $id ]['properties']['dynamicContent'] = $binding;
+	}
+
+	/**
+	 * Store validated interactions on an element.
+	 *
+	 * @param string $id Element id.
+	 * @param array  $interactions Interactions, or empty to clear.
+	 * @return void
+	 */
+	public function set_interactions( $id, $interactions ) {
+		$this->assert_exists( $id );
+		if ( 'root' === $id ) {
+			throw new \InvalidArgumentException( 'The root element cannot be edited.' );
+		}
+		if ( ! isset( $this->blocks[ $id ]['properties'] ) || ! is_array( $this->blocks[ $id ]['properties'] ) ) {
+			$this->blocks[ $id ]['properties'] = array();
+		}
+		if ( ! $interactions ) {
+			unset( $this->blocks[ $id ]['properties']['interactions'] );
+			return;
+		}
+		$this->blocks[ $id ]['properties']['interactions'] = $interactions;
+	}
+
+	/**
+	 * Store a validated interaction library (timeline) on an element.
+	 *
+	 * @param string $id Element id.
+	 * @param array  $library Library, or empty to clear.
+	 * @return void
+	 */
+	public function set_interaction_library( $id, $library ) {
+		$this->assert_exists( $id );
+		if ( 'root' === $id ) {
+			throw new \InvalidArgumentException( 'The root element cannot be edited.' );
+		}
+		if ( ! isset( $this->blocks[ $id ]['properties'] ) || ! is_array( $this->blocks[ $id ]['properties'] ) ) {
+			$this->blocks[ $id ]['properties'] = array();
+		}
+		if ( ! $library ) {
+			unset( $this->blocks[ $id ]['properties']['interactionLibrary'] );
+			return;
+		}
+		$this->blocks[ $id ]['properties']['interactionLibrary'] = $library;
+	}
 }

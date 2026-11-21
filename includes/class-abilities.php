@@ -61,9 +61,18 @@ class Abilities {
 				'list-customizer-fields',
 				'list-changesets',
 				'publish-changeset',
+				'list-customizer-registry',
+				'register-customizer-panel',
+				'register-customizer-section',
+				'register-customizer-field',
+				'unregister-customizer-item',
+				'export-settings',
+				'import-settings',
 				'ecommerce-status',
 				'ecommerce-get',
 				'ecommerce-mutate',
+				'set-store-payment-writes',
+				'list-audit-log',
 			);
 			$definitions = array_intersect_key( $definitions, array_flip( $always ) );
 		}
@@ -109,7 +118,7 @@ class Abilities {
 		);
 
 		return array(
-			'get-site-context'       => self::tool(
+			'get-site-context'            => self::tool(
 				'Get Kirki site context',
 				'Read this before designing. Returns the Kirki version, viewports, global color, size, and font variables, global classes, and header or footer symbols.',
 				true,
@@ -122,7 +131,7 @@ class Abilities {
 				false,
 				'read'
 			),
-			'get-element-schema'     => self::tool(
+			'get-element-schema'          => self::tool(
 				'Get the Kirki element schema',
 				'Describes the section and element spec accepted by create-page, add-section, add-element, and create-symbol, including CSS variant names.',
 				true,
@@ -132,7 +141,7 @@ class Abilities {
 				),
 				array( self::class, 'get_element_schema' )
 			),
-			'list-pages'             => self::tool(
+			'list-pages'                  => self::tool(
 				'List pages',
 				'List WordPress pages. By default only pages built with Kirki are returned.',
 				true,
@@ -158,7 +167,7 @@ class Abilities {
 				),
 				array( self::class, 'list_pages' )
 			),
-			'get-page'               => self::tool(
+			'get-page'                    => self::tool(
 				'Read a Kirki page',
 				'Read a page before changing it. Returns a compact element tree with ids, the local style blocks, the permalink, and the Kirki editor URL.',
 				true,
@@ -176,7 +185,7 @@ class Abilities {
 				),
 				array( self::class, 'get_page' )
 			),
-			'create-page'            => self::tool(
+			'create-page'                 => self::tool(
 				'Create a Kirki page',
 				'Create a page from sections. The page is a WordPress draft unless status is publish. Sections stack on the body. Use key and link_key for in-page links. Classes must already exist.',
 				false,
@@ -206,7 +215,7 @@ class Abilities {
 				array( self::class, 'create_page' ),
 				false
 			),
-			'update-page'            => self::tool(
+			'update-page'                 => self::tool(
 				'Update page title or slug',
 				'Change the WordPress title or slug of a Kirki page. This does not change the design. Use add-section, update-element, or update-styles for the design.',
 				false,
@@ -226,7 +235,7 @@ class Abilities {
 				array( self::class, 'update_page' ),
 				true
 			),
-			'update-custom-code'     => self::tool(
+			'update-custom-code'          => self::tool(
 				'Update page custom code',
 				'Write head or body code that Kirki prints immediately. This is not staged. Head code must be one or more <style> blocks. Body code is filtered with wp_kses_post. Requires Kirki builder access and unfiltered_html.',
 				false,
@@ -249,7 +258,7 @@ class Abilities {
 				false,
 				'unfiltered_html'
 			),
-			'update-page-settings'   => self::tool(
+			'update-page-settings'        => self::tool(
 				'Update SEO settings',
 				'Set the meta description Kirki prints, and an optional SEO title. The description is also stored as the page excerpt. SEO settings are written to published meta immediately. Kirki does not stage them.',
 				false,
@@ -270,7 +279,7 @@ class Abilities {
 				array( self::class, 'update_page_settings' ),
 				true
 			),
-			'add-section'            => self::tool(
+			'add-section'                 => self::tool(
 				'Add a section',
 				'Insert one section onto the page body at an optional index. Read the page first if you need to choose a position.',
 				false,
@@ -289,7 +298,7 @@ class Abilities {
 				),
 				array( self::class, 'add_section' )
 			),
-			'add-element'            => self::tool(
+			'add-element'                 => self::tool(
 				'Add an element',
 				'Insert an element under a parent from the page tree. Parents that can hold children are body, section, div, link-block, and button.',
 				false,
@@ -310,7 +319,7 @@ class Abilities {
 				),
 				array( self::class, 'add_element' )
 			),
-			'update-element'         => self::tool(
+			'update-element'              => self::tool(
 				'Update an element',
 				'Change text, tag, link, image source, or alt on an existing element. Pass section_id to link a button to a section element id. Does not remove the element.',
 				false,
@@ -365,7 +374,7 @@ class Abilities {
 				array( self::class, 'update_element' ),
 				true
 			),
-			'update-styles'          => self::tool(
+			'update-styles'               => self::tool(
 				'Update element styles',
 				'Replace the named CSS variants on an element. Read the page to see the current variant. Keys are md, tablet, mobile, md_hover, and md_active. This replaces those keys; it does not append.',
 				false,
@@ -383,7 +392,7 @@ class Abilities {
 				array( self::class, 'update_styles' ),
 				true
 			),
-			'reapply-global-classes' => self::tool(
+			'reapply-global-classes'      => self::tool(
 				'Reapply global classes',
 				'Remove Kirki\'s default local CSS from elements that already have a global class. Pass page_id or symbol_id. symbol_id alone is enough. clear_local also removes CSS copied onto the element by hand. Page edits are staged. Symbol edits are saved on the symbol.',
 				false,
@@ -408,7 +417,7 @@ class Abilities {
 				array( self::class, 'reapply_global_classes' ),
 				true
 			),
-			'remove-element'         => self::tool(
+			'remove-element'              => self::tool(
 				'Remove an element',
 				'Remove an element and its children. This is destructive and does nothing unless confirm is true. Root and body cannot be removed.',
 				false,
@@ -430,7 +439,7 @@ class Abilities {
 				false,
 				true
 			),
-			'duplicate-page'         => self::tool(
+			'duplicate-page'              => self::tool(
 				'Duplicate a page',
 				'Duplicate a Kirki page as a new draft, including its elements and styles. The copy is always a draft, even when the source is published. Optional title and slug replace the copy title and permalink.',
 				false,
@@ -451,7 +460,7 @@ class Abilities {
 				),
 				array( self::class, 'duplicate_page' )
 			),
-			'publish-page'           => self::tool(
+			'publish-page'                => self::tool(
 				'Publish a page',
 				'Promote an unpublished Kirki stage when one exists, set the WordPress page to publish, and optionally make it the site front page.',
 				false,
@@ -472,7 +481,7 @@ class Abilities {
 				false,
 				'publish_pages'
 			),
-			'trash-page'             => self::tool(
+			'trash-page'                  => self::tool(
 				'Trash a page',
 				'Move a page to the WordPress trash. Requires confirm set to true.',
 				false,
@@ -490,7 +499,7 @@ class Abilities {
 				false,
 				true
 			),
-			'register-font'          => self::tool(
+			'register-font'               => self::tool(
 				'Register a web font',
 				'Register a Google Fonts stylesheet so Kirki loads it on the front end. The URL must be https://fonts.googleapis.com. Example family: Fraunces. Example url: https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500&display=swap.',
 				false,
@@ -508,7 +517,7 @@ class Abilities {
 				),
 				array( self::class, 'register_font' )
 			),
-			'list-global-classes'    => self::tool(
+			'list-global-classes'         => self::tool(
 				'List global classes',
 				'List Kirki global classes and their CSS variants.',
 				true,
@@ -521,7 +530,7 @@ class Abilities {
 				false,
 				'edit_pages'
 			),
-			'upsert-global-class'    => self::tool(
+			'upsert-global-class'         => self::tool(
 				'Create or update a global class',
 				'Create a site-wide class, or replace the given CSS variants of an existing class with the same name. Attach it to an element with the classes field.',
 				false,
@@ -541,7 +550,7 @@ class Abilities {
 				false,
 				'edit_pages'
 			),
-			'list-global-variables'  => self::tool(
+			'list-global-variables'       => self::tool(
 				'List global variables',
 				'List global colors, sizes, and font families. Use css_var in element CSS, for example color:var(--the-id).',
 				true,
@@ -554,7 +563,7 @@ class Abilities {
 				false,
 				'edit_pages'
 			),
-			'set-global-variables'   => self::tool(
+			'set-global-variables'        => self::tool(
 				'Set global colors, fonts, and sizes',
 				'Create or update global design variables by name. Colors are hex or rgb(). Fonts are family names. Sizes need a number and a unit. Existing names are updated.',
 				false,
@@ -620,7 +629,7 @@ class Abilities {
 				false,
 				'edit_pages'
 			),
-			'upload-media'           => self::tool(
+			'upload-media'                => self::tool(
 				'Upload an image',
 				'Upload an image through WordPress core POST /wp/v2/media, authenticated as the current user. Kirki 6.4.2 uploads media through admin-ajax with a browser nonce, which an application password cannot send, and its REST API only lists media. Pass the returned id as attachment_id and url as src on an image element. data_base64 is the raw file with no data: prefix. Limited to 5 MB images.',
 				false,
@@ -645,7 +654,7 @@ class Abilities {
 				false,
 				'upload_files'
 			),
-			'list-symbols'           => self::tool(
+			'list-symbols'                => self::tool(
 				'List symbols',
 				'List Kirki symbols. set_as is header, footer, or empty for a reusable component.',
 				true,
@@ -655,7 +664,7 @@ class Abilities {
 				),
 				array( self::class, 'list_symbols' )
 			),
-			'get-symbol'             => self::tool(
+			'get-symbol'                  => self::tool(
 				'Read a symbol',
 				'Read one symbol, including its element tree.',
 				true,
@@ -670,7 +679,7 @@ class Abilities {
 				),
 				array( self::class, 'get_symbol' )
 			),
-			'create-symbol'          => self::tool(
+			'create-symbol'               => self::tool(
 				'Create a symbol',
 				'Create a symbol from sections. Set role to header or footer to use it as the site header or footer. Kirki allows one header and one footer; the previous symbol in that role is unassigned.',
 				false,
@@ -695,7 +704,7 @@ class Abilities {
 				),
 				array( self::class, 'create_symbol' )
 			),
-			'update-symbol'          => self::tool(
+			'update-symbol'               => self::tool(
 				'Update a symbol',
 				'Rename a symbol, change whether it is the header or footer, or replace its sections. Omit sections to keep the current design.',
 				false,
@@ -722,7 +731,7 @@ class Abilities {
 				array( self::class, 'update_symbol' ),
 				true
 			),
-			'audit-unsafe-titles'    => self::tool(
+			'audit-unsafe-titles'         => self::tool(
 				'Audit unsafe titles',
 				'Read-only. Lists Kirki pages and symbols whose stored section titles or symbol names still contain characters Kirki would print unescaped in an HTML id. It does not change them. Saving the page or symbol slugs those titles.',
 				true,
@@ -733,7 +742,7 @@ class Abilities {
 				array( self::class, 'audit_unsafe_titles' ),
 				true
 			),
-			'list-templates'         => self::tool(
+			'list-templates'              => self::tool(
 				'List Kirki templates',
 				'List kirki_template posts. Applying a template ZIP is not available in this version.',
 				true,
@@ -743,7 +752,7 @@ class Abilities {
 				),
 				array( self::class, 'list_templates' )
 			),
-			'list-popups'            => self::tool(
+			'list-popups'                 => self::tool(
 				'List Kirki popups',
 				'List kirki_popup posts. The popup data format exists in free Kirki 6.4.2; Kirki Pro advertises a fuller popup builder.',
 				true,
@@ -765,7 +774,7 @@ class Abilities {
 				),
 				array( self::class, 'list_popups' )
 			),
-			'get-popup'              => self::tool(
+			'get-popup'                   => self::tool(
 				'Get a Kirki popup',
 				'Return one kirki_popup post.',
 				true,
@@ -778,7 +787,7 @@ class Abilities {
 				),
 				array( self::class, 'get_popup' )
 			),
-			'create-popup'           => self::tool(
+			'create-popup'                => self::tool(
 				'Create a Kirki popup',
 				'Create a kirki_popup draft or published post from the same section spec used by create-page.',
 				false,
@@ -796,7 +805,7 @@ class Abilities {
 				),
 				array( self::class, 'create_popup' )
 			),
-			'update-popup'           => self::tool(
+			'update-popup'                => self::tool(
 				'Update a Kirki popup',
 				'Update a popup title and optionally replace its sections.',
 				false,
@@ -811,7 +820,7 @@ class Abilities {
 				),
 				array( self::class, 'update_popup' )
 			),
-			'trash-popup'            => self::tool(
+			'trash-popup'                 => self::tool(
 				'Trash a Kirki popup',
 				'Move a kirki_popup post to the trash. Requires confirm: true.',
 				false,
@@ -827,7 +836,7 @@ class Abilities {
 				false,
 				true
 			),
-			'content-manager-get'    => self::tool(
+			'content-manager-get'         => self::tool(
 				'Read a Kirki Content Manager collection',
 				'GET an allowlisted /kirki/v1/content-manager route. Path examples: /content-manager/collections, /content-manager/collections/1, /content-manager/collections/items. This is the visual-builder Content Manager, not Kirki eCommerce collections.',
 				true,
@@ -841,7 +850,7 @@ class Abilities {
 				),
 				array( self::class, 'content_manager_get' )
 			),
-			'content-manager-mutate' => self::tool(
+			'content-manager-mutate'      => self::tool(
 				'Create or update a Kirki Content Manager collection',
 				'POST or DELETE an allowlisted /kirki/v1/content-manager route. DELETE requires confirm: true.',
 				false,
@@ -856,13 +865,14 @@ class Abilities {
 						'path'    => array( 'type' => 'string' ),
 						'body'    => array( 'type' => 'object' ),
 						'confirm' => array( 'type' => 'boolean' ),
+						'dry_run' => array( 'type' => 'boolean' ),
 					),
 				),
 				array( self::class, 'content_manager_mutate' ),
 				false,
 				true
 			),
-			'list-theme-mods'        => self::tool(
+			'list-theme-mods'             => self::tool(
 				'List theme mods',
 				'List WordPress theme_mods for the current theme. Values that look like secrets are omitted.',
 				true,
@@ -875,7 +885,7 @@ class Abilities {
 				false,
 				'edit_theme_options'
 			),
-			'get-theme-mod'          => self::tool(
+			'get-theme-mod'               => self::tool(
 				'Get a theme mod',
 				'Read one theme_mod by name.',
 				true,
@@ -891,7 +901,7 @@ class Abilities {
 				false,
 				'edit_theme_options'
 			),
-			'set-theme-mod'          => self::tool(
+			'set-theme-mod'               => self::tool(
 				'Set a theme mod',
 				'Write one theme_mod. Does not invent new Customizer field registrations; it writes the stored value.',
 				false,
@@ -908,7 +918,7 @@ class Abilities {
 				false,
 				'edit_theme_options'
 			),
-			'get-option'             => self::tool(
+			'get-option'                  => self::tool(
 				'Get a registered option',
 				'Read a WordPress option. Core auth options, salts, passwords, license keys, and Kirki eCommerce payment options are blocked. Unknown new options cannot be created here.',
 				true,
@@ -924,7 +934,7 @@ class Abilities {
 				false,
 				'manage_options'
 			),
-			'set-option'             => self::tool(
+			'set-option'                  => self::tool(
 				'Set a registered option',
 				'Write a WordPress option that is already registered (for example by a Kirki field). Blocked keys and brand-new option names are rejected.',
 				false,
@@ -941,7 +951,7 @@ class Abilities {
 				false,
 				'manage_options'
 			),
-			'list-customizer-fields' => self::tool(
+			'list-customizer-fields'      => self::tool(
 				'List registered Kirki Customizer fields',
 				'List fields registered in PHP by Kirki or a theme. Creating new panels, sections, or control types at runtime is not supported.',
 				true,
@@ -954,7 +964,7 @@ class Abilities {
 				false,
 				'edit_theme_options'
 			),
-			'list-changesets'        => self::tool(
+			'list-changesets'             => self::tool(
 				'List Customizer changesets',
 				'List customize_changeset posts (Customizer drafts).',
 				true,
@@ -967,7 +977,7 @@ class Abilities {
 				false,
 				'edit_theme_options'
 			),
-			'publish-changeset'      => self::tool(
+			'publish-changeset'           => self::tool(
 				'Publish a Customizer changeset',
 				'Publish a customize_changeset post. WordPress Customizer publish has additional side effects in the Customizer UI that this call may not fully reproduce. Requires confirm: true.',
 				false,
@@ -984,7 +994,7 @@ class Abilities {
 				true,
 				'edit_theme_options'
 			),
-			'ecommerce-status'       => self::tool(
+			'ecommerce-status'            => self::tool(
 				'Kirki eCommerce status',
 				'Whether the standalone kirki-ecommerce plugin is installed. The Kirki visual builder is not required. Never returns secrets.',
 				true,
@@ -997,16 +1007,17 @@ class Abilities {
 				false,
 				'manage_options'
 			),
-			'ecommerce-get'          => self::tool(
+			'ecommerce-get'               => self::tool(
 				'Read a Kirki eCommerce admin route',
-				'GET an allowlisted /wp-json/kirki/ecommerce/v1 path, for example /products, /orders, /coupons, /settings/general, /migration/sources, or /dashboard/overview. Returns a clear error when Kirki eCommerce is not installed. Payment webhooks and gateway installs are not available.',
+				'GET an allowlisted /wp-json/kirki/ecommerce/v1 path, including catalog, orders, customers, cart, checkout, payment methods, shipping, tax, settings, analytics, and WooCommerce migration. Secret fields in the response are redacted. Incoming payment webhooks and customer password-change stay blocked. Returns a clear error when Kirki eCommerce is not installed.',
 				true,
 				array(
 					'type'       => 'object',
 					'required'   => array( 'path' ),
 					'properties' => array(
-						'path'  => array( 'type' => 'string' ),
-						'query' => array( 'type' => 'object' ),
+						'path'    => array( 'type' => 'string' ),
+						'query'   => array( 'type' => 'object' ),
+						'dry_run' => array( 'type' => 'boolean' ),
 					),
 				),
 				array( self::class, 'ecommerce_get' ),
@@ -1014,9 +1025,9 @@ class Abilities {
 				false,
 				'manage_options'
 			),
-			'ecommerce-mutate'       => self::tool(
+			'ecommerce-mutate'            => self::tool(
 				'Create or update Kirki eCommerce data',
-				'POST, PUT, PATCH, or DELETE an allowlisted kirki/ecommerce/v1 admin route. DELETE requires confirm: true. Catalog, orders, coupons, customers, shipping, tax, settings, and WooCommerce migration runs are allowed. Payment credential writes, gateway plugin installs, webhooks, and password changes are not.',
+				'POST, PUT, PATCH, or DELETE an allowlisted kirki/ecommerce/v1 admin route. DELETE requires confirm: true. Payment, checkout, cart, and gateway-install writes are blocked until an administrator enables set-store-payment-writes. Credential fields are write-only and never returned. Use dry_run: true to preview. Incoming payment webhooks and customer password-change stay blocked.',
 				false,
 				array(
 					'type'       => 'object',
@@ -1036,6 +1047,351 @@ class Abilities {
 				true,
 				'manage_options'
 			),
+
+			'set-store-payment-writes'    => self::tool(
+				'Allow or deny store payment writes',
+				'Enable or disable kirki_mcp_allow_store_payment_writes. Off by default. Required before payment, checkout, cart, or gateway-install writes can run. Administrators only.',
+				false,
+				array(
+					'type'       => 'object',
+					'required'   => array( 'enabled' ),
+					'properties' => array(
+						'enabled' => array( 'type' => 'boolean' ),
+					),
+				),
+				array( self::class, 'set_store_payment_writes' ),
+				true,
+				true,
+				'manage_options'
+			),
+			'list-audit-log'              => self::tool(
+				'List the Kirki MCP audit log',
+				'Return recent MCP write events (template imports, Customizer registry changes, eCommerce writes, and payment dry-runs). Credential values are never stored.',
+				true,
+				array(
+					'type'       => 'object',
+					'properties' => array(
+						'limit' => array( 'type' => 'integer' ),
+					),
+				),
+				array( self::class, 'list_audit_log' ),
+				true,
+				false,
+				'manage_options'
+			),
+			'list-customizer-registry'    => self::tool(
+				'List the MCP Customizer registry',
+				'Return panels, sections, and fields registered through Kirki MCP and re-applied on init via Kirki::add_config, add_panel, add_section, and add_field.',
+				true,
+				array(
+					'type'       => 'object',
+					'properties' => array(),
+				),
+				array( self::class, 'list_customizer_registry' ),
+				true,
+				false,
+				'edit_theme_options'
+			),
+			'register-customizer-panel'   => self::tool(
+				'Register a Customizer panel',
+				'Persist a Kirki Customizer panel in the MCP registry and apply it immediately. IDs must be lowercase a-z, digits, underscore, or hyphen.',
+				false,
+				array(
+					'type'       => 'object',
+					'required'   => array( 'id' ),
+					'properties' => array(
+						'id'          => array( 'type' => 'string' ),
+						'title'       => array( 'type' => 'string' ),
+						'description' => array( 'type' => 'string' ),
+						'priority'    => array( 'type' => 'integer' ),
+					),
+				),
+				array( self::class, 'register_customizer_panel' ),
+				true,
+				false,
+				'edit_theme_options'
+			),
+			'register-customizer-section' => self::tool(
+				'Register a Customizer section',
+				'Persist a Kirki Customizer section in the MCP registry and apply it immediately.',
+				false,
+				array(
+					'type'       => 'object',
+					'required'   => array( 'id' ),
+					'properties' => array(
+						'id'          => array( 'type' => 'string' ),
+						'title'       => array( 'type' => 'string' ),
+						'description' => array( 'type' => 'string' ),
+						'panel'       => array( 'type' => 'string' ),
+						'priority'    => array( 'type' => 'integer' ),
+					),
+				),
+				array( self::class, 'register_customizer_section' ),
+				true,
+				false,
+				'edit_theme_options'
+			),
+			'register-customizer-field'   => self::tool(
+				'Register a Customizer field',
+				'Persist a Kirki Customizer field (control) in the MCP registry and apply it on init. Type must be a built-in Kirki field type such as text, typography, or color.',
+				false,
+				array(
+					'type'       => 'object',
+					'required'   => array( 'settings', 'type', 'section' ),
+					'properties' => array(
+						'settings'    => array( 'type' => 'string' ),
+						'type'        => array( 'type' => 'string' ),
+						'label'       => array( 'type' => 'string' ),
+						'description' => array( 'type' => 'string' ),
+						'section'     => array( 'type' => 'string' ),
+						'default'     => array(),
+						'priority'    => array( 'type' => 'integer' ),
+						'choices'     => array( 'type' => 'object' ),
+						'option_type' => array( 'type' => 'string' ),
+						'transport'   => array( 'type' => 'string' ),
+					),
+				),
+				array( self::class, 'register_customizer_field' ),
+				true,
+				false,
+				'edit_theme_options'
+			),
+			'unregister-customizer-item'  => self::tool(
+				'Remove an item from the MCP Customizer registry',
+				'Drop a previously registered panel, section, or field from the MCP-owned registry. Does not delete theme PHP fields.',
+				false,
+				array(
+					'type'       => 'object',
+					'required'   => array( 'kind', 'id' ),
+					'properties' => array(
+						'kind'    => array(
+							'type' => 'string',
+							'enum' => array( 'panel', 'section', 'field' ),
+						),
+						'id'      => array( 'type' => 'string' ),
+						'confirm' => array( 'type' => 'boolean' ),
+					),
+				),
+				array( self::class, 'unregister_customizer_item' ),
+				false,
+				true,
+				'edit_theme_options'
+			),
+			'export-settings'             => self::tool(
+				'Export theme mods, options, and the MCP registry',
+				'Export safe theme mods, registered option values, and the MCP Customizer registry. Secret keys are omitted.',
+				true,
+				array(
+					'type'       => 'object',
+					'properties' => array(),
+				),
+				array( self::class, 'export_settings' ),
+				true,
+				false,
+				'edit_theme_options'
+			),
+			'import-settings'             => self::tool(
+				'Import theme mods, options, and the MCP registry',
+				'Import a settings dump produced by export-settings. Requires confirm: true. Secret keys are rejected.',
+				false,
+				array(
+					'type'       => 'object',
+					'required'   => array( 'dump', 'confirm' ),
+					'properties' => array(
+						'dump'    => array( 'type' => 'object' ),
+						'confirm' => array( 'type' => 'boolean' ),
+					),
+				),
+				array( self::class, 'import_settings' ),
+				false,
+				true,
+				'edit_theme_options'
+			),
+			'list-premium-templates'      => self::tool(
+				'List official Kirki premium templates',
+				'Fetch the official CloudFront premium template catalog (templates.json). Listing is public metadata; importing a zip may require a stored Kirki Pro license on the site. The catalog is not redistributed.',
+				true,
+				array(
+					'type'       => 'object',
+					'properties' => array(),
+				),
+				array( self::class, 'list_premium_templates' ),
+				true
+			),
+			'list-prebuilt-templates'     => self::tool(
+				'List official Kirki pre-built sections',
+				'Fetch an official CloudFront pre-built catalog (pages, navigations, heroes, features, buttons, cards, forms, or interactives). Optional dark variants.',
+				true,
+				array(
+					'type'       => 'object',
+					'properties' => array(
+						'category' => array( 'type' => 'string' ),
+						'dark'     => array( 'type' => 'boolean' ),
+					),
+				),
+				array( self::class, 'list_prebuilt_templates' ),
+				true
+			),
+			'apply-catalog-template'      => self::tool(
+				'Import an official catalog template',
+				'Download a premium site pack or a pre-built section zip from the official Kirki CDN and import it. Requires confirm: true. Creates a draft page unless page_id is set. If the CDN requires a license, the stored site key is used in memory and is never returned. Does not redistribute Pro assets.',
+				false,
+				array(
+					'type'       => 'object',
+					'required'   => array( 'source', 'id', 'confirm' ),
+					'properties' => array(
+						'source'  => array( 'type' => 'string' ),
+						'id'      => array( 'type' => 'string' ),
+						'confirm' => array( 'type' => 'boolean' ),
+						'page_id' => array( 'type' => 'integer' ),
+						'mode'    => array( 'type' => 'string' ),
+					),
+				),
+				array( self::class, 'apply_catalog_template' ),
+				false,
+				true
+			),
+			'export-site-template'        => self::tool(
+				'Start a Kirki site template export',
+				'Queue a site pack export through Kirki\\ExportImport\\TemplateExport. Call process-template-export until the zip is ready.',
+				false,
+				array(
+					'type'       => 'object',
+					'properties' => array(
+						'with_assets'    => array( 'type' => 'boolean' ),
+						'only_published' => array( 'type' => 'boolean' ),
+					),
+				),
+				array( self::class, 'export_site_template' )
+			),
+			'process-template-export'     => self::tool(
+				'Advance a site template export',
+				'Run queued TemplateExport steps and return the current status, including a zip path when finished.',
+				false,
+				array(
+					'type'       => 'object',
+					'properties' => array(
+						'max_steps' => array( 'type' => 'integer' ),
+					),
+				),
+				array( self::class, 'process_template_export' )
+			),
+			'export-page-template'        => self::tool(
+				'Export a Kirki page as a zip',
+				'Write a kirki-data.json page pack to the uploads/kirki-mcp directory and return its path.',
+				true,
+				array(
+					'type'       => 'object',
+					'required'   => array( 'page_id' ),
+					'properties' => self::page_id_schema(),
+				),
+				array( self::class, 'export_page_template' ),
+				true
+			),
+			'preview-template-zip'        => self::tool(
+				'Preview a Kirki template zip',
+				'Inspect a local zip (path or media attachment_id) and report whether it is a site pack or a page pack. Does not import.',
+				true,
+				array(
+					'type'       => 'object',
+					'properties' => array(
+						'path'          => array( 'type' => 'string' ),
+						'attachment_id' => array( 'type' => 'integer' ),
+					),
+				),
+				array( self::class, 'preview_template_zip' ),
+				true
+			),
+			'import-template-zip'         => self::tool(
+				'Import a Kirki template zip',
+				'Import a local site pack or kirki-data.json page pack. Requires confirm: true. Page packs create a draft unless page_id points at an existing page.',
+				false,
+				array(
+					'type'       => 'object',
+					'required'   => array( 'confirm' ),
+					'properties' => array(
+						'path'          => array( 'type' => 'string' ),
+						'attachment_id' => array( 'type' => 'integer' ),
+						'confirm'       => array( 'type' => 'boolean' ),
+						'page_id'       => array( 'type' => 'integer' ),
+						'mode'          => array( 'type' => 'string' ),
+					),
+				),
+				array( self::class, 'import_template_zip' ),
+				false,
+				true
+			),
+			'process-template-import'     => self::tool(
+				'Advance a site template import',
+				'Run queued TemplateImport steps after import-template-zip started a site pack.',
+				false,
+				array(
+					'type'       => 'object',
+					'properties' => array(
+						'max_steps' => array( 'type' => 'integer' ),
+					),
+				),
+				array( self::class, 'process_template_import' )
+			),
+			'list-dynamic-content-fields' => self::tool(
+				'List Kirki dynamic content fields',
+				'Return the official DynamicContent field catalog (post, term, comment, user, site, author, menu, and related sources) used by free Kirki and the Pro editor.',
+				true,
+				array(
+					'type'       => 'object',
+					'properties' => array(),
+				),
+				array( self::class, 'list_dynamic_content_fields' ),
+				true
+			),
+			'set-dynamic-content'         => self::tool(
+				'Set dynamic content on an element',
+				'Write properties.dynamicContent on a page element. Pass binding: null to clear it. Types and sources are allowlisted to the official Kirki catalog.',
+				false,
+				array(
+					'type'       => 'object',
+					'required'   => array( 'page_id', 'element_id' ),
+					'properties' => array(
+						'page_id'    => array( 'type' => 'integer' ),
+						'element_id' => array( 'type' => 'string' ),
+						'binding'    => array( 'type' => array( 'object', 'null' ) ),
+						'convert'    => array( 'type' => 'boolean' ),
+					),
+				),
+				array( self::class, 'set_dynamic_content' )
+			),
+			'set-interactions'            => self::tool(
+				'Set interactions on an element',
+				'Write properties.interactions (triggers, events, and action lists). Pass interactions: null to clear. Events are allowlisted.',
+				false,
+				array(
+					'type'       => 'object',
+					'required'   => array( 'page_id', 'element_id' ),
+					'properties' => array(
+						'page_id'      => array( 'type' => 'integer' ),
+						'element_id'   => array( 'type' => 'string' ),
+						'interactions' => array( 'type' => array( 'object', 'null' ) ),
+						'convert'      => array( 'type' => 'boolean' ),
+					),
+				),
+				array( self::class, 'set_interactions' )
+			),
+			'set-interaction-library'     => self::tool(
+				'Set an interaction library on an element',
+				'Write properties.interactionLibrary (animation timeline targets per viewport). Pass library: null to clear.',
+				false,
+				array(
+					'type'       => 'object',
+					'required'   => array( 'page_id', 'element_id' ),
+					'properties' => array(
+						'page_id'    => array( 'type' => 'integer' ),
+						'element_id' => array( 'type' => 'string' ),
+						'library'    => array( 'type' => array( 'object', 'null' ) ),
+						'convert'    => array( 'type' => 'boolean' ),
+					),
+				),
+				array( self::class, 'set_interaction_library' )
+			),
 		);
 	}
 
@@ -1048,12 +1404,18 @@ class Abilities {
 				$reason            = Compatibility::unsupported_reason();
 				list( $min, $max ) = Compatibility::range();
 				$shared            = array(
-					'plugin_version'    => KIRKI_MCP_VERSION,
-					'kirki_version'     => defined( 'KIRKI_VERSION' ) ? KIRKI_VERSION : '',
-					'kirki_pro'         => Compatibility::is_pro_user(),
-					'kirki_ecommerce'   => Ecommerce_Repository::status(),
-					'builder_supported' => ( '' === $reason ),
-					'supported_range'   => array(
+					'plugin_version'       => KIRKI_MCP_VERSION,
+					'kirki_version'        => defined( 'KIRKI_VERSION' ) ? KIRKI_VERSION : '',
+					'kirki_pro'            => Compatibility::is_pro_user(),
+					'kirki_pro_plugin'     => array(
+						'installed' => Compatibility::pro_plugin_installed(),
+						'version'   => Compatibility::pro_plugin_version(),
+						'licensed'  => Compatibility::is_pro_user(),
+					),
+					'kirki_ecommerce'      => Ecommerce_Repository::status(),
+					'store_payment_writes' => Access::store_payment_writes_allowed(),
+					'builder_supported'    => ( '' === $reason ),
+					'supported_range'      => array(
 						'minimum' => $min,
 						'below'   => $max,
 					),
@@ -2014,7 +2376,7 @@ class Abilities {
 		return self::guard(
 			function () use ( $input ) {
 				$query = isset( $input['query'] ) && is_array( $input['query'] ) ? $input['query'] : array();
-				return Ecommerce_Repository::request( 'GET', $input['path'], $query );
+				return Ecommerce_Repository::request( 'GET', $input['path'], $query, array( 'dry_run' => ! empty( $input['dry_run'] ) ) );
 			}
 		);
 	}
@@ -2031,8 +2393,376 @@ class Abilities {
 					throw new \InvalidArgumentException( 'Deleting Kirki eCommerce records requires confirm: true.' );
 				}
 				$body = isset( $input['body'] ) && is_array( $input['body'] ) ? $input['body'] : array();
-				return Ecommerce_Repository::request( $method, $input['path'], $body );
+				return Ecommerce_Repository::request(
+					$method,
+					$input['path'],
+					$body,
+					array( 'dry_run' => ! empty( $input['dry_run'] ) )
+				);
 			}
 		);
+	}
+
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
+	public static function set_store_payment_writes( $input ) {
+		return self::guard(
+			function () use ( $input ) {
+				$enabled = ! empty( $input['enabled'] );
+				Access::set_store_payment_writes( $enabled );
+				Audit::record( 'set-store-payment-writes', array( 'enabled' => $enabled ) );
+				return array(
+					'store_payment_writes' => Access::store_payment_writes_allowed(),
+				);
+			}
+		);
+	}
+
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
+	public static function list_audit_log( $input ) {
+		return self::guard(
+			function () use ( $input ) {
+				$limit = isset( $input['limit'] ) ? (int) $input['limit'] : 50;
+				return array( 'entries' => Audit::list_entries( $limit ) );
+			}
+		);
+	}
+
+	/**
+	 * @return array|\WP_Error
+	 */
+	public static function list_customizer_registry() {
+		return self::guard(
+			function () {
+				return Customizer_Registry::all();
+			}
+		);
+	}
+
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
+	public static function register_customizer_panel( $input ) {
+		return self::guard(
+			function () use ( $input ) {
+				$args = $input;
+				unset( $args['id'] );
+				Customizer_Registry::register_panel( $input['id'], $args );
+				Audit::record( 'register-customizer-panel', array( 'id' => (string) $input['id'] ) );
+				return Customizer_Registry::all();
+			}
+		);
+	}
+
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
+	public static function register_customizer_section( $input ) {
+		return self::guard(
+			function () use ( $input ) {
+				$args = $input;
+				unset( $args['id'] );
+				Customizer_Registry::register_section( $input['id'], $args );
+				Audit::record( 'register-customizer-section', array( 'id' => (string) $input['id'] ) );
+				return Customizer_Registry::all();
+			}
+		);
+	}
+
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
+	public static function register_customizer_field( $input ) {
+		return self::guard(
+			function () use ( $input ) {
+				Customizer_Registry::register_field( $input );
+				Audit::record( 'register-customizer-field', array( 'settings' => isset( $input['settings'] ) ? (string) $input['settings'] : '' ) );
+				return Customizer_Registry::all();
+			}
+		);
+	}
+
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
+	public static function unregister_customizer_item( $input ) {
+		return self::guard(
+			function () use ( $input ) {
+				if ( empty( $input['confirm'] ) ) {
+					throw new \InvalidArgumentException( 'Removing a Customizer registry item requires confirm: true.' );
+				}
+				Customizer_Registry::unregister( $input['kind'], $input['id'] );
+				Audit::record(
+					'unregister-customizer-item',
+					array(
+						'kind' => (string) $input['kind'],
+						'id'   => (string) $input['id'],
+					)
+				);
+				return Customizer_Registry::all();
+			}
+		);
+	}
+
+	/**
+	 * @return array|\WP_Error
+	 */
+	public static function export_settings() {
+		return self::guard(
+			function () {
+				return Settings_Repository::export();
+			}
+		);
+	}
+
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
+	public static function import_settings( $input ) {
+		return self::guard(
+			function () use ( $input ) {
+				$dump = isset( $input['dump'] ) && is_array( $input['dump'] ) ? $input['dump'] : array();
+				return Settings_Repository::import( $dump, ! empty( $input['confirm'] ) );
+			}
+		);
+	}
+
+	/**
+	 * @return array|\WP_Error
+	 */
+	public static function list_premium_templates() {
+		return self::guard(
+			function () {
+				return Template_Repository::list_premium();
+			}
+		);
+	}
+
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
+	public static function list_prebuilt_templates( $input ) {
+		return self::guard(
+			function () use ( $input ) {
+				$category = isset( $input['category'] ) ? (string) $input['category'] : '';
+				if ( ! empty( $input['dark'] ) && $category && false === strpos( $category, '-dark' ) ) {
+					$category .= '-dark';
+				}
+				return Template_Repository::list_prebuilt( $category );
+			}
+		);
+	}
+
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
+	public static function apply_catalog_template( $input ) {
+		return self::guard(
+			function () use ( $input ) {
+				$page_id = isset( $input['page_id'] ) ? (int) $input['page_id'] : 0;
+				$mode    = isset( $input['mode'] ) ? (string) $input['mode'] : 'default';
+				return Template_Repository::apply_catalog_item(
+					(string) $input['source'],
+					(string) $input['id'],
+					! empty( $input['confirm'] ),
+					$page_id,
+					$mode
+				);
+			}
+		);
+	}
+
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
+	public static function export_site_template( $input ) {
+		return self::guard(
+			function () use ( $input ) {
+				$with = ! isset( $input['with_assets'] ) || ! empty( $input['with_assets'] );
+				$only = ! isset( $input['only_published'] ) || ! empty( $input['only_published'] );
+				return Template_Repository::start_export( $with, $only );
+			}
+		);
+	}
+
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
+	public static function process_template_export( $input ) {
+		return self::guard(
+			function () use ( $input ) {
+				$max = isset( $input['max_steps'] ) ? (int) $input['max_steps'] : 20;
+				return Template_Repository::process_export( $max );
+			}
+		);
+	}
+
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
+	public static function export_page_template( $input ) {
+		return self::guard(
+			function () use ( $input ) {
+				return Template_Repository::export_page( (int) $input['page_id'] );
+			}
+		);
+	}
+
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
+	public static function preview_template_zip( $input ) {
+		return self::guard(
+			function () use ( $input ) {
+				return Template_Repository::preview_zip( self::resolve_zip_path( $input ) );
+			}
+		);
+	}
+
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
+	public static function import_template_zip( $input ) {
+		return self::guard(
+			function () use ( $input ) {
+				$page_id = isset( $input['page_id'] ) ? (int) $input['page_id'] : 0;
+				$mode    = isset( $input['mode'] ) ? (string) $input['mode'] : 'default';
+				return Template_Repository::import_zip(
+					self::resolve_zip_path( $input ),
+					! empty( $input['confirm'] ),
+					$mode,
+					$page_id
+				);
+			}
+		);
+	}
+
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
+	public static function process_template_import( $input ) {
+		return self::guard(
+			function () use ( $input ) {
+				$max = isset( $input['max_steps'] ) ? (int) $input['max_steps'] : 20;
+				return Template_Repository::process_import( $max );
+			}
+		);
+	}
+
+	/**
+	 * @return array|\WP_Error
+	 */
+	public static function list_dynamic_content_fields() {
+		return self::guard(
+			function () {
+				return Dynamic_Content_Repository::fields();
+			}
+		);
+	}
+
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
+	public static function set_dynamic_content( $input ) {
+		return self::guard(
+			function () use ( $input ) {
+				return self::mutate(
+					(int) $input['page_id'],
+					function ( Document $document ) use ( $input ) {
+						$binding = array_key_exists( 'binding', $input ) ? $input['binding'] : null;
+						if ( null !== $binding ) {
+							$binding = Dynamic_Content_Repository::sanitize( $binding );
+						}
+						$document->set_dynamic_content( (string) $input['element_id'], $binding );
+						return array( 'dynamic_content' => $binding );
+					},
+					! empty( $input['convert'] )
+				);
+			}
+		);
+	}
+
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
+	public static function set_interactions( $input ) {
+		return self::guard(
+			function () use ( $input ) {
+				return self::mutate(
+					(int) $input['page_id'],
+					function ( Document $document ) use ( $input ) {
+						$interactions = array_key_exists( 'interactions', $input ) ? $input['interactions'] : null;
+						if ( null !== $interactions ) {
+							$interactions = Interaction_Repository::sanitize_interactions( $interactions );
+						}
+						$document->set_interactions( (string) $input['element_id'], $interactions );
+						return array();
+					},
+					! empty( $input['convert'] )
+				);
+			}
+		);
+	}
+
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
+	public static function set_interaction_library( $input ) {
+		return self::guard(
+			function () use ( $input ) {
+				return self::mutate(
+					(int) $input['page_id'],
+					function ( Document $document ) use ( $input ) {
+						$library = array_key_exists( 'library', $input ) ? $input['library'] : null;
+						if ( null !== $library ) {
+							$library = Interaction_Repository::sanitize_library( $library );
+						}
+						$document->set_interaction_library( (string) $input['element_id'], $library );
+						return array();
+					},
+					! empty( $input['convert'] )
+				);
+			}
+		);
+	}
+
+	/**
+	 * Resolve a local zip from a path or media attachment.
+	 *
+	 * @param array $input Input.
+	 * @return string
+	 */
+	private static function resolve_zip_path( array $input ) {
+		if ( ! empty( $input['path'] ) ) {
+			return (string) $input['path'];
+		}
+		if ( ! empty( $input['attachment_id'] ) && function_exists( 'get_attached_file' ) ) {
+			$file = get_attached_file( (int) $input['attachment_id'] );
+			if ( $file ) {
+				return $file;
+			}
+		}
+		throw new \InvalidArgumentException( 'Provide a local zip path or a media attachment_id.' );
 	}
 }

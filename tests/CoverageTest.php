@@ -1,6 +1,6 @@
 <?php
 /**
- * Coverage for 0.3.0 repositories: eCommerce allowlist, Customizer keys, Pro detection, Content Manager routes.
+ * Coverage for Kirki MCP repositories: eCommerce allowlist, Customizer keys, Pro detection, Content Manager routes.
  *
  * @package KirkiMCP
  */
@@ -72,23 +72,37 @@ class CoverageTest extends TestCase {
 	}
 
 	/**
-	 * Payment webhooks, gateway installs, and password changes stay blocked.
+	 * Incoming payment webhooks and customer password-change stay blocked.
 	 */
 	public function test_ecommerce_allowlist_rejects_sensitive_routes() {
 		$blocked = array(
 			array( 'POST', '/payment/webhook/stripe' ),
 			array( 'GET', '/payment/webhook/paypal' ),
-			array( 'POST', '/online-payments/install' ),
-			array( 'POST', '/online-payments/update' ),
-			array( 'PUT', '/online-payments/1' ),
-			array( 'DELETE', '/online-payments/1' ),
 			array( 'PUT', '/password-change' ),
-			array( 'POST', '/checkout' ),
-			array( 'GET', '/cart' ),
 			array( 'POST', '/wp-admin/anything' ),
 		);
 		foreach ( $blocked as $row ) {
 			$this->assertFalse( Ecommerce_Repository::is_allowed_route( $row[0], $row[1] ), $row[0] . ' ' . $row[1] );
+		}
+	}
+
+	/**
+	 * Payment, checkout, and cart routes are allowlisted but marked sensitive.
+	 */
+	public function test_ecommerce_payment_routes_are_allowlisted_and_sensitive() {
+		$routes = array(
+			array( 'POST', '/online-payments/install' ),
+			array( 'POST', '/online-payments/update' ),
+			array( 'PUT', '/online-payments/1' ),
+			array( 'DELETE', '/online-payments/1' ),
+			array( 'POST', '/checkout' ),
+			array( 'GET', '/cart' ),
+			array( 'POST', '/cart/items' ),
+			array( 'GET', '/online-payments/installable' ),
+		);
+		foreach ( $routes as $row ) {
+			$this->assertTrue( Ecommerce_Repository::is_allowed_route( $row[0], $row[1] ), $row[0] . ' ' . $row[1] );
+			$this->assertTrue( Ecommerce_Repository::is_sensitive_route( $row[0], $row[1] ), 'sensitive ' . $row[1] );
 		}
 	}
 
