@@ -5,6 +5,7 @@
 			<file>tests/CompilerTest.php</file>
 			<file>tests/SafetyTest.php</file>
 			<file>tests/FixesTest.php</file>
+			<file>tests/CoverageTest.php</file>
 		</testsuite>
 	</testsuites>
 </phpunit>

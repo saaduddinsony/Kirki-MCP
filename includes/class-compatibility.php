@@ -84,4 +84,16 @@ class Compatibility {
 		}
 		return $missing;
 	}
+
+	/**
+	 * Kirki Pro license state. Never returns the license key.
+	 *
+	 * @return bool
+	 */
+	public static function is_pro_user() {
+		if ( class_exists( '\Kirki\HelperFunctions' ) && method_exists( '\Kirki\HelperFunctions', 'is_pro_user' ) ) {
+			return (bool) \Kirki\HelperFunctions::is_pro_user();
+		}
+		return false;
+	}
 }

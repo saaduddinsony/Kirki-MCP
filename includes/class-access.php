@@ -78,6 +78,22 @@ class Access {
 	}
 
 	/**
+	 * Merchant-admin capabilities used by Kirki eCommerce admin routes.
+	 *
+	 * @return bool
+	 */
+	public static function can_manage_store() {
+		return function_exists( 'current_user_can' ) && current_user_can( 'manage_options' );
+	}
+
+	/**
+	 * Theme mods and Customizer changesets need the same cap WordPress uses for the Customizer.
+	 */
+	public static function can_customize() {
+		return function_exists( 'current_user_can' ) && current_user_can( 'edit_theme_options' );
+	}
+
+	/**
 	 * Custom code is printed raw by Kirki, so it needs unfiltered_html as well as builder access.
 	 *
 	 * @return bool

@@ -1,8 +1,10 @@
 # Kirki MCP
 
-Kirki MCP is a WordPress plugin that lets any MCP-capable agent build and edit sites made with the [Kirki](https://kirki.com) visual builder. It is free and licensed GPL-2.0-or-later.
+Copyright (C) 2026 S M Saad Uddin. This plugin is free software licensed under GPL-2.0-or-later.
 
-The plugin does not modify Kirki. It registers WordPress abilities, and the official [MCP Adapter](https://github.com/WordPress/mcp-adapter) exposes those abilities to Claude Code, Cursor, Claude Desktop, and any other MCP client.
+Kirki MCP is a WordPress plugin that lets any MCP-capable agent build and edit sites made with the [Kirki](https://kirki.com) visual builder, including advertised Kirki Pro surfaces that already have a free data format, WordPress Customizer values, and — when it is installed — the standalone [Kirki eCommerce](https://wordpress.org/plugins/kirki-ecommerce/) plugin. It is free and licensed GPL-2.0-or-later.
+
+The plugin does not modify Kirki. It registers WordPress abilities, and the official [MCP Adapter](https://github.com/WordPress/mcp-adapter) exposes those abilities to Claude Code, Cursor, VS Code, Windsurf, and any other MCP client. Copy-paste setup for each verified client is in [docs/CLIENTS.md](docs/CLIENTS.md) and [examples/clients/](examples/clients/). The feature coverage matrix is [docs/GAPS.md](docs/GAPS.md).
 
 Pages are stored in the same post meta Kirki's editor writes (`kirki` for the element map, `kirki_global_style_block_random` for CSS style blocks), so a page created through MCP opens in the Kirki editor.
 
@@ -10,14 +12,16 @@ Pages are stored in the same post meta Kirki's editor writes (`kirki` for the el
 
 - WordPress 6.9 or newer
 - PHP 7.4 or newer
-- Kirki 6.4.x (tested with 6.4.2; 6.5 and 7 are not supported)
 - The [MCP Adapter](https://wordpress.org/plugins/mcp-adapter/) plugin
+- Kirki 6.4.x for visual-builder abilities (tested with 6.4.2; 6.5 and 7 are not supported)
+- Optional: Kirki Pro (detected at runtime; this plugin never returns the license key)
+- Optional: [Kirki eCommerce](https://wordpress.org/plugins/kirki-ecommerce/) 1.0.x (standalone; the Kirki builder is not required)
 
 ## Install on a live site
 
-1. Install and activate **Kirki** and **MCP Adapter** from Plugins → Add New.
+1. Install and activate **MCP Adapter** from Plugins → Add New. Install **Kirki** 6.4.x for builder features. Optionally install **Kirki eCommerce**.
 2. Install this plugin. Either upload the release zip from `bin/build-zip.sh`, or copy this directory to `wp-content/plugins/kirki-mcp` and activate **Kirki MCP**.
-3. In WordPress, open **Users → Profile**, scroll to **Application Passwords**, and create a password for your agent. The user needs Kirki builder access, which Kirki gives to administrators and editors. `edit_pages` is required to design pages and `publish_pages` to publish. Builder access is enough to change global classes and variables.
+3. In WordPress, open **Users → Profile**, scroll to **Application Passwords**, and create a password for your agent. Builder work needs Kirki builder access, which Kirki gives to administrators and editors. `edit_pages` is required to design pages and `publish_pages` to publish. Customizer abilities need `edit_theme_options`. Kirki eCommerce abilities need `manage_options`.
 4. Confirm the endpoint on **Settings → Kirki MCP**. It is:
 
 ```text
@@ -36,53 +40,48 @@ The adapter's default server has three meta-tools. Agents discover Kirki operati
 
 Read `kirki-mcp/get-site-context` and `kirki-mcp/get-element-schema` before writing. Build pages with a small section spec, not raw Kirki JSON.
 
-### Claude Code
+Ready-to-copy configuration for each verified client lives in [`examples/clients/`](examples/clients/). Full notes, official doc links, and transport differences are in [`docs/CLIENTS.md`](docs/CLIENTS.md).
 
-Claude Code can talk to the endpoint over HTTP. Add this to `.mcp.json` in the project, with a Basic header of `username:application password`:
+Placeholders are `YOUR_SITE_URL`, `YOUR_USERNAME`, `YOUR_APP_PASSWORD`, and `YOUR_BASIC_CREDENTIAL` (Base64 of `YOUR_USERNAME:YOUR_APP_PASSWORD`). Do not commit a real password.
 
-```json
-{
-  "mcpServers": {
-    "kirki": {
-      "type": "http",
-      "url": "https://example.com/wp-json/mcp/mcp-adapter-default-server",
-      "headers": {
-        "Authorization": "Basic BASE64_OF_USERNAME_COLON_APPLICATION_PASSWORD"
-      }
-    }
-  }
-}
+| Client | Config | Official docs |
+| --- | --- | --- |
+| Claude Code | `examples/clients/claude-code.mcp.json` | [MCP in Claude Code](https://docs.anthropic.com/en/docs/claude-code/mcp) |
+| Claude Desktop | `examples/clients/claude-desktop.json` | [Custom connectors](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp) |
+| Cursor | `examples/clients/cursor.mcp.json` | [Cursor MCP](https://cursor.com/docs/context/mcp) |
+| VS Code (Copilot agent mode) | `examples/clients/vscode.mcp.json` | [VS Code MCP](https://code.visualstudio.com/docs/copilot/customization/mcp-servers) |
+| Windsurf | `examples/clients/windsurf.mcp_config.json` | [Windsurf MCP](https://docs.windsurf.com/windsurf/cascade/mcp) |
+| Google Antigravity | `examples/clients/antigravity.mcp_config.json` | [Antigravity](https://antigravity.google/docs) |
+| Kilo Code | `examples/clients/kilo.kilo.jsonc` | [Kilo Code MCP](https://kilo.ai/docs/agent/mcp) |
+| Cline | `examples/clients/cline_mcp_settings.json` | [Cline MCP](https://docs.cline.bot/mcp/configuring-mcp-servers) |
+| Roo Code | `examples/clients/roo.mcp.json` | [Roo Code MCP](https://docs.roocode.com/features/mcp/using-mcp-in-roo) |
+| OpenCode | `examples/clients/opencode.json` | [OpenCode MCP](https://opencode.ai/docs/mcp) |
+| Continue | `examples/clients/continue.mcp.json` | [Continue MCP](https://docs.continue.dev/customize/deep-dives/mcp) |
+| Zed | `examples/clients/zed-settings.json` | [Zed MCP](https://zed.dev/docs/ai/mcp) |
+| JetBrains AI Assistant / Junie | `examples/clients/jetbrains-ai-assistant.json` | [JetBrains AI Assistant MCP](https://www.jetbrains.com/help/ai-assistant/mcp.html) |
+| Gemini CLI | `examples/clients/gemini-settings.json` | [Gemini CLI MCP](https://github.com/google-gemini/gemini-cli/blob/main/docs/tools/mcp-server.md) |
+| OpenAI Codex CLI | `examples/clients/codex.config.toml` | [Codex MCP](https://developers.openai.com/codex/mcp/) |
+| Warp | `examples/clients/warp.mcp.json` | [Warp MCP](https://docs.warp.dev/knowledge-and-collaboration/mcp) |
+| LM Studio | `examples/clients/lmstudio.mcp.json` | [LM Studio MCP](https://lmstudio.ai/docs/app/plugins/mcp) |
+| Augment | `examples/clients/augment.mcp.json` | [Augment MCP](https://docs.augmentcode.com/setup-augment/mcp) |
+
+Amazon Q Developer, Trae, and Goose are not given a guessed config in this release; see `docs/CLIENTS.md`.
+
+### VS Code official installer
+
+```bash
+code --add-mcp '{"name":"kirki","type":"http","url":"https://YOUR_SITE_URL/wp-json/mcp/mcp-adapter-default-server","headers":{"Authorization":"Basic YOUR_BASIC_CREDENTIAL"}}'
 ```
 
-### Cursor
+### Stdio-only clients
 
-In Cursor, add an MCP server with the same URL and Basic authorization header. If the client only speaks stdio, use the proxy below instead.
-
-### Claude Desktop, and any stdio-only client
-
-Use [`@automattic/mcp-wordpress-remote`](https://github.com/Automattic/mcp-wordpress-remote):
-
-```json
-{
-  "mcpServers": {
-    "kirki": {
-      "command": "npx",
-      "args": ["-y", "@automattic/mcp-wordpress-remote"],
-      "env": {
-        "WP_API_URL": "https://example.com/wp-json/mcp/mcp-adapter-default-server",
-        "WP_API_USERNAME": "your-username",
-        "WP_API_PASSWORD": "your-application-password"
-      }
-    }
-  }
-}
-```
+If a client can only start a local process, use [`@automattic/mcp-wordpress-remote`](https://github.com/Automattic/mcp-wordpress-remote). See `examples/clients/stdio-mcp-wordpress-remote.json`.
 
 ## Abilities
 
 | Ability | What it does |
 | --- | --- |
-| `kirki-mcp/get-site-context` | Viewports, variables, classes, symbols |
+| `kirki-mcp/get-site-context` | Viewports, variables, classes, symbols, plus `kirki_pro` and `kirki_ecommerce` status |
 | `kirki-mcp/get-element-schema` | Spec the compiler accepts |
 | `kirki-mcp/list-pages` | Pages, Kirki pages by default |
 | `kirki-mcp/get-page` | Compact tree, styles, editor URL |
@@ -109,6 +108,26 @@ Use [`@automattic/mcp-wordpress-remote`](https://github.com/Automattic/mcp-wordp
 | `kirki-mcp/create-symbol` | Header, footer, or component |
 | `kirki-mcp/update-symbol` | Rename, reassign the role, or replace sections |
 | `kirki-mcp/list-templates` | `kirki_template` posts |
+| `kirki-mcp/list-popups` | `kirki_popup` posts |
+| `kirki-mcp/get-popup` | One popup |
+| `kirki-mcp/create-popup` | Popup from the same section spec as pages |
+| `kirki-mcp/update-popup` | Popup title and sections |
+| `kirki-mcp/trash-popup` | Trash a popup. Requires `confirm: true` |
+| `kirki-mcp/content-manager-get` | Allowlisted Kirki Content Manager GET |
+| `kirki-mcp/content-manager-mutate` | Allowlisted Content Manager POST/DELETE. DELETE requires `confirm: true` |
+| `kirki-mcp/list-theme-mods` | Current theme mods |
+| `kirki-mcp/get-theme-mod` | One theme_mod |
+| `kirki-mcp/set-theme-mod` | Write a theme_mod |
+| `kirki-mcp/get-option` | A registered option (secrets blocked) |
+| `kirki-mcp/set-option` | Write a registered option (secrets and unknown new keys blocked) |
+| `kirki-mcp/list-customizer-fields` | Fields registered in PHP by Kirki or a theme |
+| `kirki-mcp/list-changesets` | `customize_changeset` posts |
+| `kirki-mcp/publish-changeset` | Publish a changeset. Requires `confirm: true` |
+| `kirki-mcp/ecommerce-status` | Whether Kirki eCommerce is installed |
+| `kirki-mcp/ecommerce-get` | Allowlisted kirki/ecommerce/v1 GET |
+| `kirki-mcp/ecommerce-mutate` | Allowlisted eCommerce POST/PUT/PATCH/DELETE. DELETE requires `confirm: true` |
+
+The compiler accepts `video`, `slider`, and `tabs` in addition to the 0.2.x element types. See `get-element-schema`. The coverage matrix is [docs/GAPS.md](docs/GAPS.md).
 
 A section looks like this:
 
@@ -153,7 +172,7 @@ Application passwords are a WordPress core feature. On a live site they require 
 - Section titles and symbol names are limited to letters, numbers, spaces, dots, underscores, and hyphens. Kirki prints a section title as `id="…"` with no escaping.
 - Kirki prints a custom font's `fontUrl`, or its `localUrl` when one is set, into a stylesheet link without escaping. New URLs are checked before they are stored. URLs already stored, including ones saved by Kirki's own font screen, are passed through `esc_url_raw` on the way out, via the `get_post_metadata` filter, before Kirki prints them. `audit-unsafe-titles` lists section titles and symbol names that were stored before that character limit and have not been saved again.
 - Updating a global class through this plugin refreshes the copy stored on symbols that use it, 20 symbols at a time, header and footer first. The rest continue on a single scheduled follow-up. Kirki's own class screen writes through its database layer and does not notify the plugin, so those edits are copied the next time `upsert-global-class` or `reapply-global-classes` runs. `reapply-global-classes` with `symbol_id` updates that one symbol and also strips default local CSS.
-- `remove-element` and `trash-page` refuse to run unless `confirm` is `true`.
+- `remove-element`, `trash-page`, `trash-popup`, Content Manager and eCommerce DELETE, and `publish-changeset` refuse to run unless `confirm` is `true`.
 - Edits to a published page stay on an unpublished Kirki stage until `publish-page`. Drafts are saved in post meta. `writing_to` on each page response says which of the two happened.
 
 ## Development
@@ -164,12 +183,14 @@ bash bin/build-zip.sh
 KIRKI_MCP_STAGING_CHECK=1 wp eval-file tests/e2e/staging-check.php
 ```
 
-`tests/e2e/staging-check.php` is for a test install. It refuses to run unless `KIRKI_MCP_STAGING_CHECK` is set. It publishes a page, edits it, publishes again, and temporarily takes the header role, then deletes that page and restores the previous header. The zip is written to `dist/kirki-mcp-0.2.9.zip`.
+`tests/e2e/staging-check.php` is for a test install. It refuses to run unless `KIRKI_MCP_STAGING_CHECK` is set. It publishes a page, edits it, publishes again, and temporarily takes the header role, then deletes that page and restores the previous header. The zip is written to `dist/kirki-mcp-0.3.0.zip`.
 
 ## Known gaps
 
-- Content Manager collections and items are not writable.
-- Popups, sliders, and interactions are not generated. Forms (with email delivery and a submit button) and navigation (with a mobile menu) are.
-- Template ZIP import is not implemented. Existing `kirki_template` posts can be listed.
-- Kirki Pro-only behavior was not tested. This plugin targets the free 6.4.x plugin.
-- Supported range is Kirki `>= 6.4.0` and `< 6.5.0`, tested against 6.4.2. `kirki_mcp_supported_kirki_range` can widen it after you have checked that build. The stored JSON is not a public schema.
+The full before/after matrix is [docs/GAPS.md](docs/GAPS.md). Remaining gaps in 0.3.0:
+
+- Template ZIP import is not implemented. Existing `kirki_template` posts can be listed. Import is skipped because Kirki can overwrite published meta.
+- New Customizer panels, sections, and controls cannot be registered at runtime; only stored values and already-registered fields are available.
+- Advertised Kirki Pro dynamic content, the full interaction timeline, and premium template packs are not written. Pro is detected (`kirki_pro`); the license key is never returned.
+- Kirki eCommerce payment webhooks, gateway installs, credential writes, checkout, and password changes are intentionally not exposed.
+- Supported builder range is Kirki `>= 6.4.0` and `< 6.5.0`, tested against 6.4.2. `kirki_mcp_supported_kirki_range` can widen it after you have checked that build. The stored JSON is not a public schema.
