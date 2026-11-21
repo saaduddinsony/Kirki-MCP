@@ -1,0 +1,11 @@
+{
+  "servers": {
+    "kirki": {
+      "type": "http",
+      "url": "https://YOUR_SITE_URL/wp-json/mcp/mcp-adapter-default-server",
+      "headers": {
+        "Authorization": "Basic YOUR_BASIC_CREDENTIAL"
+      }
+    }
+  }
+}

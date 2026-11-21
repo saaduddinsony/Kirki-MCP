@@ -4,35 +4,37 @@ Tags: kirki, mcp, ai, page-builder, abilities
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.2.9
+Stable tag: 0.3.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Lets MCP-capable AI agents build and edit sites made with the Kirki visual builder.
+Lets MCP-capable AI agents build and edit Kirki sites, Customizer values, and Kirki eCommerce stores.
 
 == Description ==
 
-Kirki MCP is a companion to the free Kirki 6.4 builder. It registers WordPress abilities for pages, sections, elements, forms, navigation, global classes, colors, fonts, and header and footer symbols. The official MCP Adapter plugin exposes those abilities to Claude Code, Cursor, Claude Desktop, and any other MCP client.
+Kirki MCP is a companion to the free Kirki 6.4 builder, optional Kirki Pro, and the standalone Kirki eCommerce plugin. It registers WordPress abilities for pages, sections, elements (including video, sliders, and tabs), popups, Content Manager collections, Customizer theme mods, and, when kirki-ecommerce is active, store catalog, orders, coupons, shipping, and WooCommerce migration. The official MCP Adapter plugin exposes those abilities to Claude Code, Cursor, VS Code, Windsurf, and other MCP clients. Setup files live in docs/CLIENTS.md and examples/clients/.
 
 The plugin does not modify Kirki. Pages are saved in the post meta Kirki's editor already uses, so a page built through MCP opens and edits in the Kirki canvas.
 
 Requires:
 
 * WordPress 6.9 or newer (the Abilities API)
-* Kirki 6.4.x
 * The MCP Adapter plugin
+* Kirki 6.4.x for visual-builder abilities (tested with 6.4.2)
+* Optional: Kirki Pro (detected at runtime; the license key is never exposed)
+* Optional: Kirki eCommerce 1.0.x (detected at runtime; the builder is not required)
 
 Connect an agent with an application password to:
 
 `https://example.com/wp-json/mcp/mcp-adapter-default-server`
 
-See the plugin README for Claude Code, Cursor, and Claude Desktop configuration.
+See docs/CLIENTS.md and examples/clients/ for current MCP client configuration. See docs/GAPS.md for the feature coverage matrix.
 
 Destructive actions (`remove-element`, `trash-page`) require an explicit `confirm` flag. Global style changes require Kirki builder access, which administrators and editors have.
 
 == Installation ==
 
-1. Install and activate Kirki and MCP Adapter.
+1. Install and activate MCP Adapter. Install Kirki 6.4.x for builder features, and optionally Kirki eCommerce.
 2. Upload the Kirki MCP zip and activate it.
 3. Create an application password under Users → Profile.
 4. Point your MCP client at the endpoint shown under Settings → Kirki MCP.
@@ -52,6 +54,14 @@ Kirki 6.4.x only. It was tested with 6.4.2. Kirki 6.5 and 7 are not supported. F
 Yes, with `kirki-mcp/publish-page`, and only when the user can publish pages.
 
 == Changelog ==
+
+= 0.3.0 =
+* Client setup for Claude Code, Claude Desktop, Cursor, VS Code, Windsurf, Antigravity, Kilo Code, Cline, Roo Code, OpenCode, Continue, Zed, JetBrains AI Assistant, Gemini CLI, Codex CLI, Warp, LM Studio, and Augment.
+* Kirki Pro is detected at runtime. The license key is never returned.
+* New builder types: video, slider, tabs. Popup and Content Manager abilities.
+* Theme mod, option, Customizer field, and changeset abilities. Secret option keys are blocked.
+* Kirki eCommerce abilities with runtime detection. Catalog, orders, coupons, shipping, tax, settings, analytics, and WooCommerce migration are allowlisted. Payment webhooks, gateway installs, and checkout are not.
+* Coverage matrix: docs/GAPS.md.
 
 = 0.2.9 =
 * Old titles that contain quotes are stripped in the database, in stages, and on read. Unicode and ordinary spaces stay.

@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.3.0
+
+- MCP client setup for Claude Code, Claude Desktop, Cursor, VS Code (GitHub Copilot agent mode), Windsurf, Google Antigravity, Kilo Code, Cline, Roo Code, OpenCode (V2 `mcp.servers`), Continue, Zed, JetBrains AI Assistant / Junie, Gemini CLI, OpenAI Codex CLI, Warp, LM Studio, and Augment. Ready-to-copy files live in `examples/clients/`. The compatibility table and transport notes are in `docs/CLIENTS.md`. Amazon Q Developer, Trae, and Goose are listed as unverified because official pages were not usable at documentation time. One-click install is documented only where a vendor officially supports it (`code --add-mcp` for VS Code).
+- Coverage audit of free Kirki 6.4.2, advertised Kirki Pro features, and Kirki eCommerce 1.0.2 (wordpress.org listing + tag source). The matrix is `docs/GAPS.md`.
+- Runtime Pro detection through `\Kirki\HelperFunctions::is_pro_user()` when that class exists. `get-site-context` reports `kirki_pro` as a boolean and never returns a license key.
+- Compiler and schema gain `video`, `slider`, and `tabs` element types, matching free Kirki 6.4.2 renderers.
+- Popup abilities for the `kirki_popup` post type (`list-popups`, `get-popup`, `create-popup`, `update-popup`, `trash-popup`).
+- Content Manager abilities (`content-manager-get`, `content-manager-mutate`) proxy allowlisted `/kirki/v1/content-manager` routes. These are visual-builder collections, not Kirki eCommerce collections.
+- Customizer / settings abilities: `list-theme-mods`, `get-theme-mod`, `set-theme-mod`, `get-option`, `set-option`, `list-customizer-fields`, `list-changesets`, `publish-changeset`. Secret and core option keys are blocked. New Customizer field registration remains a documented gap.
+- Kirki eCommerce compatibility: `ecommerce-status`, `ecommerce-get`, `ecommerce-mutate`. The store plugin is detected at runtime and is not required. Allowlisted admin routes cover catalog, orders, coupons, customers, shipping, tax, settings, analytics, and WooCommerce migration. Payment webhooks, gateway installs, credential writes, checkout, and password changes are not exposed. These abilities still register when the Kirki builder is missing or unsupported.
+- Builder abilities stay limited to Kirki 6.4.x. MCP Adapter is the only hard plugin dependency, so a site can use the eCommerce and Customizer tools without a supported Kirki builder.
+- Unit tests cover the new compiler types, the eCommerce allowlist (including rejected webhook/install routes), option-key blocks, Pro detection when the helper is absent, and Content Manager route allowlists.
+- Copyright: S M Saad Uddin. License remains GPL-2.0-or-later.
+
+## 0.2.9
+
 ## 0.2.9
 
 - Stored titles that Kirki prints into an id or a section-link href lose only `"`, `'`, `` ` ``, `<`, and `>`. Tabs and newlines become a space. Unicode and the rest of the title stay. The read filter, the saved post meta, unpublished stages, and symbols all get that pass, including a heading a link points at. A later save no longer leaves that heading dirty.

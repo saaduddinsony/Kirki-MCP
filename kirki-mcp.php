@@ -7,18 +7,18 @@
  * exposed by the official MCP Adapter plugin. This plugin does not modify Kirki.
  *
  * @package           KirkiMCP
- * @author            Kirki MCP Contributors
+ * @author            S M Saad Uddin
  * @license           GPL-2.0-or-later
  *
  * @wordpress-plugin
  * Plugin Name:       Kirki MCP
  * Plugin URI:        https://github.com/saaduddinsony/Kirki-MCP
- * Description:       Build and edit Kirki sites from any MCP-capable AI agent. Requires Kirki 6.4.x and the official WordPress MCP Adapter.
- * Version:           0.2.9
+ * Description:       Build and edit Kirki sites, Customizer values, and (when installed) Kirki eCommerce, from any MCP-capable AI agent. Requires the official WordPress MCP Adapter. Builder features need Kirki 6.4.x.
+ * Version:           0.3.0
  * Requires at least: 6.9
  * Requires PHP:      7.4
- * Requires Plugins:  kirki, mcp-adapter
- * Author:            Kirki MCP Contributors
+ * Requires Plugins:  mcp-adapter
+ * Author:            S M Saad Uddin
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       kirki-mcp
@@ -28,7 +28,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'KIRKI_MCP_VERSION', '0.2.9' );
+define( 'KIRKI_MCP_VERSION', '0.3.0' );
 define( 'KIRKI_MCP_FILE', __FILE__ );
 define( 'KIRKI_MCP_DIR', plugin_dir_path( __FILE__ ) );
 
@@ -43,6 +43,10 @@ require_once KIRKI_MCP_DIR . 'includes/class-page-repository.php';
 require_once KIRKI_MCP_DIR . 'includes/class-global-repository.php';
 require_once KIRKI_MCP_DIR . 'includes/class-symbol-repository.php';
 require_once KIRKI_MCP_DIR . 'includes/class-media-repository.php';
+require_once KIRKI_MCP_DIR . 'includes/class-popup-repository.php';
+require_once KIRKI_MCP_DIR . 'includes/class-collection-repository.php';
+require_once KIRKI_MCP_DIR . 'includes/class-customizer-repository.php';
+require_once KIRKI_MCP_DIR . 'includes/class-ecommerce-repository.php';
 require_once KIRKI_MCP_DIR . 'includes/class-abilities.php';
 require_once KIRKI_MCP_DIR . 'includes/class-admin.php';
 require_once KIRKI_MCP_DIR . 'includes/class-plugin.php';

@@ -51,9 +51,21 @@ class Abilities {
 		}
 		$definitions = self::definitions();
 		if ( ! Compatibility::supported() ) {
-			$definitions = array(
-				'get-site-context' => $definitions['get-site-context'],
+			$always      = array(
+				'get-site-context',
+				'list-theme-mods',
+				'get-theme-mod',
+				'set-theme-mod',
+				'get-option',
+				'set-option',
+				'list-customizer-fields',
+				'list-changesets',
+				'publish-changeset',
+				'ecommerce-status',
+				'ecommerce-get',
+				'ecommerce-mutate',
 			);
+			$definitions = array_intersect_key( $definitions, array_flip( $always ) );
 		}
 		foreach ( $definitions as $name => $args ) {
 			wp_register_ability( 'kirki-mcp/' . $name, $args );
@@ -731,6 +743,299 @@ class Abilities {
 				),
 				array( self::class, 'list_templates' )
 			),
+			'list-popups'            => self::tool(
+				'List Kirki popups',
+				'List kirki_popup posts. The popup data format exists in free Kirki 6.4.2; Kirki Pro advertises a fuller popup builder.',
+				true,
+				array(
+					'type'       => 'object',
+					'properties' => array(
+						'page'     => array(
+							'type'    => 'integer',
+							'minimum' => 1,
+							'default' => 1,
+						),
+						'per_page' => array(
+							'type'    => 'integer',
+							'minimum' => 1,
+							'maximum' => 50,
+							'default' => 20,
+						),
+					),
+				),
+				array( self::class, 'list_popups' )
+			),
+			'get-popup'              => self::tool(
+				'Get a Kirki popup',
+				'Return one kirki_popup post.',
+				true,
+				array(
+					'type'       => 'object',
+					'required'   => array( 'popup_id' ),
+					'properties' => array(
+						'popup_id' => array( 'type' => 'integer' ),
+					),
+				),
+				array( self::class, 'get_popup' )
+			),
+			'create-popup'           => self::tool(
+				'Create a Kirki popup',
+				'Create a kirki_popup draft or published post from the same section spec used by create-page.',
+				false,
+				array(
+					'type'       => 'object',
+					'required'   => array( 'title', 'sections' ),
+					'properties' => array(
+						'title'    => array( 'type' => 'string' ),
+						'sections' => array( 'type' => 'array' ),
+						'status'   => array(
+							'type' => 'string',
+							'enum' => array( 'draft', 'publish' ),
+						),
+					),
+				),
+				array( self::class, 'create_popup' )
+			),
+			'update-popup'           => self::tool(
+				'Update a Kirki popup',
+				'Update a popup title and optionally replace its sections.',
+				false,
+				array(
+					'type'       => 'object',
+					'required'   => array( 'popup_id' ),
+					'properties' => array(
+						'popup_id' => array( 'type' => 'integer' ),
+						'title'    => array( 'type' => 'string' ),
+						'sections' => array( 'type' => 'array' ),
+					),
+				),
+				array( self::class, 'update_popup' )
+			),
+			'trash-popup'            => self::tool(
+				'Trash a Kirki popup',
+				'Move a kirki_popup post to the trash. Requires confirm: true.',
+				false,
+				array(
+					'type'       => 'object',
+					'required'   => array( 'popup_id', 'confirm' ),
+					'properties' => array(
+						'popup_id' => array( 'type' => 'integer' ),
+						'confirm'  => array( 'type' => 'boolean' ),
+					),
+				),
+				array( self::class, 'trash_popup' ),
+				false,
+				true
+			),
+			'content-manager-get'    => self::tool(
+				'Read a Kirki Content Manager collection',
+				'GET an allowlisted /kirki/v1/content-manager route. Path examples: /content-manager/collections, /content-manager/collections/1, /content-manager/collections/items. This is the visual-builder Content Manager, not Kirki eCommerce collections.',
+				true,
+				array(
+					'type'       => 'object',
+					'required'   => array( 'path' ),
+					'properties' => array(
+						'path'  => array( 'type' => 'string' ),
+						'query' => array( 'type' => 'object' ),
+					),
+				),
+				array( self::class, 'content_manager_get' )
+			),
+			'content-manager-mutate' => self::tool(
+				'Create or update a Kirki Content Manager collection',
+				'POST or DELETE an allowlisted /kirki/v1/content-manager route. DELETE requires confirm: true.',
+				false,
+				array(
+					'type'       => 'object',
+					'required'   => array( 'method', 'path' ),
+					'properties' => array(
+						'method'  => array(
+							'type' => 'string',
+							'enum' => array( 'POST', 'DELETE' ),
+						),
+						'path'    => array( 'type' => 'string' ),
+						'body'    => array( 'type' => 'object' ),
+						'confirm' => array( 'type' => 'boolean' ),
+					),
+				),
+				array( self::class, 'content_manager_mutate' ),
+				false,
+				true
+			),
+			'list-theme-mods'        => self::tool(
+				'List theme mods',
+				'List WordPress theme_mods for the current theme. Values that look like secrets are omitted.',
+				true,
+				array(
+					'type'       => 'object',
+					'properties' => array(),
+				),
+				array( self::class, 'list_theme_mods' ),
+				true,
+				false,
+				'edit_theme_options'
+			),
+			'get-theme-mod'          => self::tool(
+				'Get a theme mod',
+				'Read one theme_mod by name.',
+				true,
+				array(
+					'type'       => 'object',
+					'required'   => array( 'name' ),
+					'properties' => array(
+						'name' => array( 'type' => 'string' ),
+					),
+				),
+				array( self::class, 'get_theme_mod' ),
+				true,
+				false,
+				'edit_theme_options'
+			),
+			'set-theme-mod'          => self::tool(
+				'Set a theme mod',
+				'Write one theme_mod. Does not invent new Customizer field registrations; it writes the stored value.',
+				false,
+				array(
+					'type'       => 'object',
+					'required'   => array( 'name', 'value' ),
+					'properties' => array(
+						'name'  => array( 'type' => 'string' ),
+						'value' => array(),
+					),
+				),
+				array( self::class, 'set_theme_mod' ),
+				false,
+				false,
+				'edit_theme_options'
+			),
+			'get-option'             => self::tool(
+				'Get a registered option',
+				'Read a WordPress option. Core auth options, salts, passwords, license keys, and Kirki eCommerce payment options are blocked. Unknown new options cannot be created here.',
+				true,
+				array(
+					'type'       => 'object',
+					'required'   => array( 'name' ),
+					'properties' => array(
+						'name' => array( 'type' => 'string' ),
+					),
+				),
+				array( self::class, 'get_option' ),
+				true,
+				false,
+				'manage_options'
+			),
+			'set-option'             => self::tool(
+				'Set a registered option',
+				'Write a WordPress option that is already registered (for example by a Kirki field). Blocked keys and brand-new option names are rejected.',
+				false,
+				array(
+					'type'       => 'object',
+					'required'   => array( 'name', 'value' ),
+					'properties' => array(
+						'name'  => array( 'type' => 'string' ),
+						'value' => array(),
+					),
+				),
+				array( self::class, 'set_option' ),
+				false,
+				false,
+				'manage_options'
+			),
+			'list-customizer-fields' => self::tool(
+				'List registered Kirki Customizer fields',
+				'List fields registered in PHP by Kirki or a theme. Creating new panels, sections, or control types at runtime is not supported.',
+				true,
+				array(
+					'type'       => 'object',
+					'properties' => array(),
+				),
+				array( self::class, 'list_customizer_fields' ),
+				true,
+				false,
+				'edit_theme_options'
+			),
+			'list-changesets'        => self::tool(
+				'List Customizer changesets',
+				'List customize_changeset posts (Customizer drafts).',
+				true,
+				array(
+					'type'       => 'object',
+					'properties' => array(),
+				),
+				array( self::class, 'list_changesets' ),
+				true,
+				false,
+				'edit_theme_options'
+			),
+			'publish-changeset'      => self::tool(
+				'Publish a Customizer changeset',
+				'Publish a customize_changeset post. WordPress Customizer publish has additional side effects in the Customizer UI that this call may not fully reproduce. Requires confirm: true.',
+				false,
+				array(
+					'type'       => 'object',
+					'required'   => array( 'changeset_id', 'confirm' ),
+					'properties' => array(
+						'changeset_id' => array( 'type' => 'integer' ),
+						'confirm'      => array( 'type' => 'boolean' ),
+					),
+				),
+				array( self::class, 'publish_changeset' ),
+				false,
+				true,
+				'edit_theme_options'
+			),
+			'ecommerce-status'       => self::tool(
+				'Kirki eCommerce status',
+				'Whether the standalone kirki-ecommerce plugin is installed. The Kirki visual builder is not required. Never returns secrets.',
+				true,
+				array(
+					'type'       => 'object',
+					'properties' => array(),
+				),
+				array( self::class, 'ecommerce_status' ),
+				true,
+				false,
+				'manage_options'
+			),
+			'ecommerce-get'          => self::tool(
+				'Read a Kirki eCommerce admin route',
+				'GET an allowlisted /wp-json/kirki/ecommerce/v1 path, for example /products, /orders, /coupons, /settings/general, /migration/sources, or /dashboard/overview. Returns a clear error when Kirki eCommerce is not installed. Payment webhooks and gateway installs are not available.',
+				true,
+				array(
+					'type'       => 'object',
+					'required'   => array( 'path' ),
+					'properties' => array(
+						'path'  => array( 'type' => 'string' ),
+						'query' => array( 'type' => 'object' ),
+					),
+				),
+				array( self::class, 'ecommerce_get' ),
+				true,
+				false,
+				'manage_options'
+			),
+			'ecommerce-mutate'       => self::tool(
+				'Create or update Kirki eCommerce data',
+				'POST, PUT, PATCH, or DELETE an allowlisted kirki/ecommerce/v1 admin route. DELETE requires confirm: true. Catalog, orders, coupons, customers, shipping, tax, settings, and WooCommerce migration runs are allowed. Payment credential writes, gateway plugin installs, webhooks, and password changes are not.',
+				false,
+				array(
+					'type'       => 'object',
+					'required'   => array( 'method', 'path' ),
+					'properties' => array(
+						'method'  => array(
+							'type' => 'string',
+							'enum' => array( 'POST', 'PUT', 'PATCH', 'DELETE' ),
+						),
+						'path'    => array( 'type' => 'string' ),
+						'body'    => array( 'type' => 'object' ),
+						'confirm' => array( 'type' => 'boolean' ),
+					),
+				),
+				array( self::class, 'ecommerce_mutate' ),
+				false,
+				true,
+				'manage_options'
+			),
 		);
 	}
 
@@ -740,21 +1045,26 @@ class Abilities {
 	public static function get_site_context() {
 		return self::guard(
 			function () {
-				$reason = Compatibility::unsupported_reason();
+				$reason            = Compatibility::unsupported_reason();
+				list( $min, $max ) = Compatibility::range();
+				$shared            = array(
+					'plugin_version'    => KIRKI_MCP_VERSION,
+					'kirki_version'     => defined( 'KIRKI_VERSION' ) ? KIRKI_VERSION : '',
+					'kirki_pro'         => Compatibility::is_pro_user(),
+					'kirki_ecommerce'   => Ecommerce_Repository::status(),
+					'builder_supported' => ( '' === $reason ),
+					'supported_range'   => array(
+						'minimum' => $min,
+						'below'   => $max,
+					),
+				);
 				if ( '' !== $reason ) {
-					list( $min, $max ) = Compatibility::range();
-					return array(
-						'supported'       => false,
-						'reason'          => $reason,
-						'kirki_version'   => defined( 'KIRKI_VERSION' ) ? KIRKI_VERSION : '',
-						'plugin_version'  => KIRKI_MCP_VERSION,
-						'supported_range' => array(
-							'minimum' => $min,
-							'below'   => $max,
-						),
-					);
+					$shared['supported'] = false;
+					$shared['reason']    = $reason;
+					return $shared;
 				}
 				$context                   = Global_Repository::context();
+				$context                   = array_merge( $context, $shared );
 				$context['supported']      = true;
 				$context['style_variants'] = Css::variant_vocabulary();
 				return $context;
@@ -1336,6 +1646,12 @@ class Abilities {
 				if ( 'unfiltered_html' === $capability ) {
 					return Access::can_edit_custom_code();
 				}
+				if ( 'manage_options' === $capability ) {
+					return Access::can_manage_store();
+				}
+				if ( 'edit_theme_options' === $capability ) {
+					return Access::can_customize();
+				}
 				return Access::can_build();
 			},
 			'meta'                => array(
@@ -1474,6 +1790,249 @@ class Abilities {
 				),
 			),
 			'required'             => array( 'type' ),
+		);
+	}
+
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
+	public static function list_popups( $input ) {
+		return self::guard(
+			function () use ( $input ) {
+				$page = isset( $input['page'] ) ? max( 1, (int) $input['page'] ) : 1;
+				$per  = isset( $input['per_page'] ) ? min( 50, max( 1, (int) $input['per_page'] ) ) : 20;
+				return Popup_Repository::list_popups( $page, $per );
+			}
+		);
+	}
+
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
+	public static function get_popup( $input ) {
+		return self::guard(
+			function () use ( $input ) {
+				return Popup_Repository::present( (int) $input['popup_id'] );
+			}
+		);
+	}
+
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
+	public static function create_popup( $input ) {
+		return self::guard(
+			function () use ( $input ) {
+				$status   = isset( $input['status'] ) ? $input['status'] : 'draft';
+				$sections = isset( $input['sections'] ) && is_array( $input['sections'] ) ? $input['sections'] : array();
+				Page_Repository::resolve_classes( $sections );
+				return Popup_Repository::create( $input['title'], $sections, $status );
+			}
+		);
+	}
+
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
+	public static function update_popup( $input ) {
+		return self::guard(
+			function () use ( $input ) {
+				$sections = array_key_exists( 'sections', $input ) && is_array( $input['sections'] ) ? $input['sections'] : null;
+				if ( is_array( $sections ) ) {
+					Page_Repository::resolve_classes( $sections );
+				}
+				return Popup_Repository::update(
+					(int) $input['popup_id'],
+					$sections,
+					isset( $input['title'] ) ? $input['title'] : ''
+				);
+			}
+		);
+	}
+
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
+	public static function trash_popup( $input ) {
+		return self::guard(
+			function () use ( $input ) {
+				if ( empty( $input['confirm'] ) ) {
+					throw new \InvalidArgumentException( 'Trashing a popup requires confirm: true.' );
+				}
+				return Popup_Repository::trash( (int) $input['popup_id'] );
+			}
+		);
+	}
+
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
+	public static function content_manager_get( $input ) {
+		return self::guard(
+			function () use ( $input ) {
+				$query = isset( $input['query'] ) && is_array( $input['query'] ) ? $input['query'] : array();
+				return Collection_Repository::request( 'GET', $input['path'], $query );
+			}
+		);
+	}
+
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
+	public static function content_manager_mutate( $input ) {
+		return self::guard(
+			function () use ( $input ) {
+				$method = strtoupper( (string) $input['method'] );
+				if ( 'DELETE' === $method && empty( $input['confirm'] ) ) {
+					throw new \InvalidArgumentException( 'Deleting a Content Manager record requires confirm: true.' );
+				}
+				$body = isset( $input['body'] ) && is_array( $input['body'] ) ? $input['body'] : array();
+				return Collection_Repository::request( $method, $input['path'], $body );
+			}
+		);
+	}
+
+	/**
+	 * @return array|\WP_Error
+	 */
+	public static function list_theme_mods() {
+		return self::guard(
+			function () {
+				return Customizer_Repository::list_mods();
+			}
+		);
+	}
+
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
+	public static function get_theme_mod( $input ) {
+		return self::guard(
+			function () use ( $input ) {
+				return Customizer_Repository::get_mod( $input['name'] );
+			}
+		);
+	}
+
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
+	public static function set_theme_mod( $input ) {
+		return self::guard(
+			function () use ( $input ) {
+				return Customizer_Repository::set_mod( $input['name'], $input['value'] );
+			}
+		);
+	}
+
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
+	public static function get_option( $input ) {
+		return self::guard(
+			function () use ( $input ) {
+				return Customizer_Repository::get_option( $input['name'] );
+			}
+		);
+	}
+
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
+	public static function set_option( $input ) {
+		return self::guard(
+			function () use ( $input ) {
+				return Customizer_Repository::set_option( $input['name'], $input['value'] );
+			}
+		);
+	}
+
+	/**
+	 * @return array|\WP_Error
+	 */
+	public static function list_customizer_fields() {
+		return self::guard(
+			function () {
+				return array( 'fields' => Customizer_Repository::registered_fields() );
+			}
+		);
+	}
+
+	/**
+	 * @return array|\WP_Error
+	 */
+	public static function list_changesets() {
+		return self::guard(
+			function () {
+				return Customizer_Repository::list_changesets();
+			}
+		);
+	}
+
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
+	public static function publish_changeset( $input ) {
+		return self::guard(
+			function () use ( $input ) {
+				if ( empty( $input['confirm'] ) ) {
+					throw new \InvalidArgumentException( 'Publishing a changeset requires confirm: true.' );
+				}
+				return Customizer_Repository::publish_changeset( (int) $input['changeset_id'] );
+			}
+		);
+	}
+
+	/**
+	 * @return array|\WP_Error
+	 */
+	public static function ecommerce_status() {
+		return self::guard(
+			function () {
+				return Ecommerce_Repository::status();
+			}
+		);
+	}
+
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
+	public static function ecommerce_get( $input ) {
+		return self::guard(
+			function () use ( $input ) {
+				$query = isset( $input['query'] ) && is_array( $input['query'] ) ? $input['query'] : array();
+				return Ecommerce_Repository::request( 'GET', $input['path'], $query );
+			}
+		);
+	}
+
+	/**
+	 * @param array $input Input.
+	 * @return array|\WP_Error
+	 */
+	public static function ecommerce_mutate( $input ) {
+		return self::guard(
+			function () use ( $input ) {
+				$method = strtoupper( (string) $input['method'] );
+				if ( 'DELETE' === $method && empty( $input['confirm'] ) ) {
+					throw new \InvalidArgumentException( 'Deleting Kirki eCommerce records requires confirm: true.' );
+				}
+				$body = isset( $input['body'] ) && is_array( $input['body'] ) ? $input['body'] : array();
+				return Ecommerce_Repository::request( $method, $input['path'], $body );
+			}
 		);
 	}
 }

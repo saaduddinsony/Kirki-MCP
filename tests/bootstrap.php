@@ -6,6 +6,9 @@
  */
 
 define( 'ABSPATH', __DIR__ . '/' );
+if ( ! defined( 'KIRKI_MCP_VERSION' ) ) {
+	define( 'KIRKI_MCP_VERSION', '0.3.0' );
+}
 
 if ( ! function_exists( 'wp_parse_url' ) ) {
 	/**
@@ -54,3 +57,7 @@ require dirname( __DIR__ ) . '/includes/class-symbol-repository.php';
 require dirname( __DIR__ ) . '/includes/class-page-repository.php';
 require dirname( __DIR__ ) . '/includes/class-global-repository.php';
 require dirname( __DIR__ ) . '/includes/class-plugin.php';
+require dirname( __DIR__ ) . '/includes/class-compatibility.php';
+require dirname( __DIR__ ) . '/includes/class-ecommerce-repository.php';
+require dirname( __DIR__ ) . '/includes/class-customizer-repository.php';
+require dirname( __DIR__ ) . '/includes/class-collection-repository.php';

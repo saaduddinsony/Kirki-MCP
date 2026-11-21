@@ -30,7 +30,7 @@ class Spec_Compiler {
 	 * @return string[]
 	 */
 	public static function element_types() {
-		return array( 'section', 'div', 'heading', 'paragraph', 'text', 'button', 'image', 'link-block', 'link-text', 'navigation', 'form', 'list' );
+		return array( 'section', 'div', 'heading', 'paragraph', 'text', 'button', 'image', 'link-block', 'link-text', 'navigation', 'form', 'list', 'video', 'slider', 'tabs' );
 	}
 
 	/**
@@ -55,6 +55,7 @@ class Spec_Compiler {
 				'classes is a list of global class names from upsert-global-class.',
 				'navigation items are {text, href or link_key}. The menu stays visible at every width.',
 				'form fields are {name, label, type, required, options}. Types: text, email, tel, url, textarea, select, checkbox, radio. success_message and error_message are shown after submit.',
+				'video uses src (https URL). slider slides are {elements, styles, title}. tabs are {title, elements} and optional active (0-based index). These match the free Kirki 6.4.2 renderer.',
 				'hide_on is md, tablet, or mobile. inline mixes strings and {text, href} links inside a paragraph.',
 				'Do not send raw Kirki JSON. Use this spec.',
 			),
@@ -67,7 +68,7 @@ class Spec_Compiler {
 				'elements' => 'Child elements, including navigation, form, list, and link-text.',
 			),
 			'element'             => array(
-				'type'            => 'section, div, heading, paragraph, text, link-text, button, image, link-block, navigation, form, or list.',
+				'type'            => 'section, div, heading, paragraph, text, link-text, button, image, link-block, navigation, form, list, video, slider, or tabs.',
 				'text'            => 'Plain text for heading, paragraph, text, and button.',
 				'tag'             => 'Heading level or an allowed tag for the type.',
 				'href'            => 'http(s) URL, mailto, tel, or site-relative path.',
@@ -474,6 +475,16 @@ class Spec_Compiler {
 			$block['template_mounted'] = true;
 		}
 
+		if ( 'slider' === $type ) {
+			$block['children']         = self::slider_slides( isset( $spec['slides'] ) ? $spec['slides'] : array(), $id, $blocks, $styles, $keys, $count );
+			$block['template_mounted'] = true;
+		}
+
+		if ( 'tabs' === $type ) {
+			$block['children']         = self::tabs_children( isset( $spec['tabs'] ) ? $spec['tabs'] : array(), $id, $blocks, $styles, $keys, $count );
+			$block['template_mounted'] = true;
+		}
+
 		if ( 'button' === $type ) {
 			$label = self::plain_text( isset( $spec['text'] ) ? $spec['text'] : 'Button' );
 			if ( '' === $label ) {
@@ -682,6 +693,30 @@ class Spec_Compiler {
 					$link['attributes']['rel'] = 'noopener noreferrer';
 				}
 				return $link;
+			case 'video':
+				$src = Css::url( isset( $spec['src'] ) ? $spec['src'] : ( isset( $spec['href'] ) ? $spec['href'] : '' ) );
+				if ( '' === $src ) {
+					throw new \InvalidArgumentException( 'A video needs an https src URL.' );
+				}
+				return array(
+					'tag'        => 'div',
+					'attributes' => array(
+						'src' => $src,
+					),
+				);
+			case 'slider':
+				return array(
+					'tag' => 'div',
+				);
+			case 'tabs':
+				$active = isset( $spec['active'] ) ? (int) $spec['active'] : 0;
+				if ( $active < 0 ) {
+					$active = 0;
+				}
+				return array(
+					'tag'        => 'div',
+					'active_tab' => $active,
+				);
 		}
 
 		throw new \InvalidArgumentException( 'Unsupported element type.' );
@@ -959,6 +994,9 @@ class Spec_Compiler {
 			'navigation' => 'Navigation',
 			'form'       => 'Form',
 			'list'       => 'List',
+			'video'      => 'Video',
+			'slider'     => 'Slider',
+			'tabs'       => 'Tabs',
 		);
 		return isset( $names[ $type ] ) ? $names[ $type ] : 'Element';
 	}
@@ -1390,5 +1428,139 @@ class Spec_Compiler {
 			throw new \InvalidArgumentException( 'Keys must start with a letter and contain only letters, numbers, hyphens, and underscores.' );
 		}
 		return $key;
+	}
+
+	/**
+	 * Manual slider slides. Each slide is a div compiled from elements.
+	 *
+	 * @param array  $slides Slide specs.
+	 * @param string $parent_id Parent id.
+	 * @param array  $blocks Blocks.
+	 * @param array  $styles Styles.
+	 * @param array  $keys Keys.
+	 * @param int    $count Counter.
+	 * @return string[] Child ids.
+	 */
+	private static function slider_slides( $slides, $parent_id, array &$blocks, array &$styles, array &$keys, &$count ) {
+		if ( ! is_array( $slides ) || ! $slides ) {
+			throw new \InvalidArgumentException( 'A slider needs at least one slide.' );
+		}
+		$ids = array();
+		foreach ( $slides as $slide ) {
+			if ( ! is_array( $slide ) ) {
+				throw new \InvalidArgumentException( 'Each slide must be an object.' );
+			}
+			$child = array(
+				'type'     => 'div',
+				'title'    => isset( $slide['title'] ) ? $slide['title'] : 'Slide',
+				'styles'   => isset( $slide['styles'] ) ? $slide['styles'] : array(),
+				'elements' => isset( $slide['elements'] ) && is_array( $slide['elements'] ) ? $slide['elements'] : array(),
+			);
+			$ids[] = self::compile_element( $child, $parent_id, $blocks, $styles, $keys, $count );
+		}
+		return $ids;
+	}
+
+	/**
+	 * Tab menu and tab panes, matching Kirki 6.4.2 exceptional element names.
+	 *
+	 * @param array  $tabs Tab specs.
+	 * @param string $parent_id Parent id.
+	 * @param array  $blocks Blocks.
+	 * @param array  $styles Styles.
+	 * @param array  $keys Keys.
+	 * @param int    $count Counter.
+	 * @return string[] Child ids (tab_menu, tab_content).
+	 */
+	private static function tabs_children( $tabs, $parent_id, array &$blocks, array &$styles, array &$keys, &$count ) {
+		if ( ! is_array( $tabs ) || count( $tabs ) < 2 ) {
+			throw new \InvalidArgumentException( 'Tabs need at least two tabs, each with a title.' );
+		}
+		$menu_id    = Ids::make( $blocks );
+		$content_id = Ids::make( $blocks );
+		$tab_ids    = array();
+		$pane_ids   = array();
+		foreach ( $tabs as $index => $tab ) {
+			if ( ! is_array( $tab ) ) {
+				throw new \InvalidArgumentException( 'Each tab must be an object.' );
+			}
+			$title = self::plain_text( isset( $tab['title'] ) ? $tab['title'] : '' );
+			if ( '' === $title ) {
+				throw new \InvalidArgumentException( 'Each tab needs a title.' );
+			}
+			$tab_id            = Ids::make( $blocks );
+			$pane_id           = Ids::make( $blocks );
+			$blocks[ $tab_id ] = array(
+				'visibility' => true,
+				'collapse'   => false,
+				'name'       => 'tab',
+				'title'      => $title,
+				'properties' => array(
+					'tag'      => 'div',
+					'contents' => array( $title ),
+				),
+				'styleIds'   => array(),
+				'className'  => '',
+				'source'     => 'kirki',
+				'id'         => $tab_id,
+				'parentId'   => $menu_id,
+				'children'   => array(),
+			);
+			$child_ids         = array();
+			$elements          = isset( $tab['elements'] ) && is_array( $tab['elements'] ) ? $tab['elements'] : array();
+			foreach ( $elements as $child ) {
+				if ( ! is_array( $child ) ) {
+					throw new \InvalidArgumentException( 'Each tab element must be an object.' );
+				}
+				$child_ids[] = self::compile_element( $child, $pane_id, $blocks, $styles, $keys, $count );
+			}
+			$blocks[ $pane_id ] = array(
+				'visibility' => true,
+				'collapse'   => false,
+				'name'       => 'tab_pane',
+				'title'      => $title,
+				'properties' => array(
+					'tag' => 'div',
+				),
+				'styleIds'   => array(),
+				'className'  => '',
+				'source'     => 'kirki',
+				'id'         => $pane_id,
+				'parentId'   => $content_id,
+				'children'   => $child_ids,
+			);
+			$tab_ids[]          = $tab_id;
+			$pane_ids[]         = $pane_id;
+			++$count;
+		}
+		$blocks[ $menu_id ]    = array(
+			'visibility'       => true,
+			'collapse'         => false,
+			'name'             => 'tab_menu',
+			'title'            => 'Tab menu',
+			'properties'       => array( 'tag' => 'div' ),
+			'styleIds'         => array(),
+			'className'        => '',
+			'source'           => 'kirki',
+			'id'               => $menu_id,
+			'parentId'         => $parent_id,
+			'children'         => $tab_ids,
+			'template_mounted' => true,
+		);
+		$blocks[ $content_id ] = array(
+			'visibility'       => true,
+			'collapse'         => false,
+			'name'             => 'tab_content',
+			'title'            => 'Tab content',
+			'properties'       => array( 'tag' => 'div' ),
+			'styleIds'         => array(),
+			'className'        => '',
+			'source'           => 'kirki',
+			'id'               => $content_id,
+			'parentId'         => $parent_id,
+			'children'         => $pane_ids,
+			'template_mounted' => true,
+		);
+		return array( $menu_id, $content_id );
 	}
 }

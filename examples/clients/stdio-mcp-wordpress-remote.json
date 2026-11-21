@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "kirki": {
+      "command": "npx",
+      "args": ["-y", "@automattic/mcp-wordpress-remote"],
+      "env": {
+        "WP_API_URL": "https://YOUR_SITE_URL/wp-json/mcp/mcp-adapter-default-server",
+        "WP_API_USERNAME": "YOUR_USERNAME",
+        "WP_API_PASSWORD": "YOUR_APP_PASSWORD"
+      }
+    }
+  }
+}
