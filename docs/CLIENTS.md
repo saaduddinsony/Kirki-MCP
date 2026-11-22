@@ -26,7 +26,7 @@ This endpoint is a **Streamable HTTP** MCP server. It is not a stdio process.
 - Clients that speak Streamable HTTP (or generic HTTP MCP) should set the URL above and send `Authorization: Basic YOUR_BASIC_CREDENTIAL`.
 - Clients that only start a local stdio process should use [`@automattic/mcp-wordpress-remote`](https://github.com/Automattic/mcp-wordpress-remote) (preferred for WordPress) or [`mcp-remote`](https://www.npmjs.com/package/mcp-remote) as a bridge. A ready example is `examples/clients/stdio-mcp-wordpress-remote.json`.
 
-The adapter presents three meta-tools (`mcp-adapter-discover-abilities`, `mcp-adapter-get-ability-info`, `mcp-adapter-execute-ability`). Agents discover `kirki-mcp/…` abilities through those tools. Start with `kirki-mcp/get-site-context`.
+The adapter presents three meta-tools (`mcp-adapter-discover-abilities`, `mcp-adapter-get-ability-info`, `mcp-adapter-execute-ability`). Agents discover `kirki-mcp/…` abilities through those tools, including the 21 `kirki-mcp/woo-*` tools when [Kirki WooCommerce Bridge](https://github.com/saaduddinsony/kirki-woocommerce-bridge) is the goal. Start with `kirki-mcp/get-site-context` (check `kirki_woocommerce_bridge`). A product-page workflow is in `examples/workflows/woocommerce-bridge.md`.
 
 One-click install badges are listed only where the vendor documents them. Cursor marketplace one-click is for Cursor marketplace plugins, not a generic remote HTTP URL. The official VS Code installer is `code --add-mcp`, not a verified generic `vscode:mcp/install` deeplink.
 

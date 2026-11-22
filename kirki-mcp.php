@@ -13,8 +13,8 @@
  * @wordpress-plugin
  * Plugin Name:       Kirki MCP
  * Plugin URI:        https://github.com/saaduddinsony/Kirki-MCP
- * Description:       Build and edit Kirki, Kirki Pro, and Kirki eCommerce sites from any MCP-capable AI agent. Requires the official WordPress MCP Adapter. Builder features need Kirki 6.4.x.
- * Version:           0.4.0
+ * Description:       Build and edit Kirki, Kirki Pro, Kirki eCommerce, and Kirki WooCommerce Bridge sites from any MCP-capable AI agent. Requires the official WordPress MCP Adapter. Builder features need Kirki 6.4.x.
+ * Version:           0.5.0
  * Requires at least: 6.9
  * Requires PHP:      7.4
  * Requires Plugins:  mcp-adapter
@@ -28,7 +28,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'KIRKI_MCP_VERSION', '0.4.0' );
+define( 'KIRKI_MCP_VERSION', '0.5.0' );
 define( 'KIRKI_MCP_FILE', __FILE__ );
 define( 'KIRKI_MCP_DIR', plugin_dir_path( __FILE__ ) );
 
@@ -53,6 +53,7 @@ require_once KIRKI_MCP_DIR . 'includes/class-interaction-repository.php';
 require_once KIRKI_MCP_DIR . 'includes/class-customizer-registry.php';
 require_once KIRKI_MCP_DIR . 'includes/class-settings-repository.php';
 require_once KIRKI_MCP_DIR . 'includes/class-template-repository.php';
+require_once KIRKI_MCP_DIR . 'includes/class-woo-bridge-repository.php';
 require_once KIRKI_MCP_DIR . 'includes/class-abilities.php';
 require_once KIRKI_MCP_DIR . 'includes/class-admin.php';
 require_once KIRKI_MCP_DIR . 'includes/class-plugin.php';

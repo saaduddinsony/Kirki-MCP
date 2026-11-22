@@ -126,6 +126,24 @@ class Access {
 	}
 
 	/**
+	 * Preview and inspect WooCommerce Bridge elements (edit_posts).
+	 *
+	 * @return bool
+	 */
+	public static function can_read_woo_bridge() {
+		return function_exists( 'current_user_can' ) && current_user_can( 'edit_posts' );
+	}
+
+	/**
+	 * Change WooCommerce Bridge settings, rules, and designs.
+	 *
+	 * @return bool
+	 */
+	public static function can_manage_woo_bridge() {
+		return function_exists( 'current_user_can' ) && current_user_can( 'manage_woocommerce' );
+	}
+
+	/**
 	 * Custom code is printed raw by Kirki, so it needs unfiltered_html as well as builder access.
 	 *
 	 * @return bool
