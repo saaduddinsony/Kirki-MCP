@@ -10,6 +10,13 @@
 		<exclude name="Generic.Commenting.DocComment.MissingShort"/>
 		<exclude name="WordPress.Security.EscapeOutput.ExceptionNotEscaped"/>
 	</rule>
+	<rule ref="WordPress.WP.Capabilities">
+		<properties>
+			<property name="custom_capabilities" type="array">
+				<element value="manage_woocommerce"/>
+			</property>
+		</properties>
+	</rule>
 	<!-- CLI harnesses talk to a local server and write progress to the terminal. -->
 	<rule ref="WordPress.WP.AlternativeFunctions">
 		<exclude-pattern>*/tests/*</exclude-pattern>

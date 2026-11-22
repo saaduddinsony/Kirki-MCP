@@ -74,6 +74,7 @@ class Abilities {
 				'set-store-payment-writes',
 				'list-audit-log',
 			);
+			$always      = array_merge( $always, Woo_Bridge_Repository::ability_names() );
 			$definitions = array_intersect_key( $definitions, array_flip( $always ) );
 		}
 		foreach ( $definitions as $name => $args ) {
@@ -117,10 +118,10 @@ class Abilities {
 			),
 		);
 
-		return array(
+		$definitions = array(
 			'get-site-context'            => self::tool(
 				'Get Kirki site context',
-				'Read this before designing. Returns the Kirki version, viewports, global color, size, and font variables, global classes, and header or footer symbols.',
+				'Read this before designing. Returns the Kirki version, Pro and eCommerce and WooCommerce Bridge detection, viewports, global color, size, and font variables, global classes, and header or footer symbols.',
 				true,
 				array(
 					'type'       => 'object',
@@ -1393,6 +1394,7 @@ class Abilities {
 				array( self::class, 'set_interaction_library' )
 			),
 		);
+		return array_merge( $definitions, self::woo_bridge_definitions() );
 	}
 
 	/**
@@ -1404,18 +1406,19 @@ class Abilities {
 				$reason            = Compatibility::unsupported_reason();
 				list( $min, $max ) = Compatibility::range();
 				$shared            = array(
-					'plugin_version'       => KIRKI_MCP_VERSION,
-					'kirki_version'        => defined( 'KIRKI_VERSION' ) ? KIRKI_VERSION : '',
-					'kirki_pro'            => Compatibility::is_pro_user(),
-					'kirki_pro_plugin'     => array(
+					'plugin_version'           => KIRKI_MCP_VERSION,
+					'kirki_version'            => defined( 'KIRKI_VERSION' ) ? KIRKI_VERSION : '',
+					'kirki_pro'                => Compatibility::is_pro_user(),
+					'kirki_pro_plugin'         => array(
 						'installed' => Compatibility::pro_plugin_installed(),
 						'version'   => Compatibility::pro_plugin_version(),
 						'licensed'  => Compatibility::is_pro_user(),
 					),
-					'kirki_ecommerce'      => Ecommerce_Repository::status(),
-					'store_payment_writes' => Access::store_payment_writes_allowed(),
-					'builder_supported'    => ( '' === $reason ),
-					'supported_range'      => array(
+					'kirki_ecommerce'          => Ecommerce_Repository::status(),
+					'kirki_woocommerce_bridge' => Woo_Bridge_Repository::status(),
+					'store_payment_writes'     => Access::store_payment_writes_allowed(),
+					'builder_supported'        => ( '' === $reason ),
+					'supported_range'          => array(
 						'minimum' => $min,
 						'below'   => $max,
 					),
@@ -2013,6 +2016,12 @@ class Abilities {
 				}
 				if ( 'edit_theme_options' === $capability ) {
 					return Access::can_customize();
+				}
+				if ( 'edit_posts' === $capability ) {
+					return Access::can_read_woo_bridge();
+				}
+				if ( 'manage_woocommerce' === $capability ) {
+					return Access::can_manage_woo_bridge();
 				}
 				return Access::can_build();
 			},
@@ -2743,6 +2752,46 @@ class Abilities {
 					},
 					! empty( $input['convert'] )
 				);
+			}
+		);
+	}
+
+	/**
+	 * Kirki WooCommerce Bridge tools (`woo-*`), generated from the official catalog.
+	 *
+	 * @return array
+	 */
+	private static function woo_bridge_definitions() {
+		$definitions = array();
+		foreach ( Woo_Bridge_Repository::operations() as $op ) {
+			$ability                          = $op['ability'];
+			$definitions[ 'woo-' . $ability ] = self::tool(
+				$op['label'],
+				$op['description'],
+				! empty( $op['readonly'] ),
+				Woo_Bridge_Repository::input_schema( $op ),
+				function ( $input ) use ( $ability ) {
+					return self::run_woo_bridge( $ability, is_array( $input ) ? $input : array() );
+				},
+				! empty( $op['idempotent'] ),
+				! empty( $op['destructive'] ),
+				$op['cap']
+			);
+		}
+		return $definitions;
+	}
+
+	/**
+	 * Proxy a WooCommerce Bridge operation.
+	 *
+	 * @param string $ability Ability slug without the woo- prefix.
+	 * @param array  $input Input.
+	 * @return array|\WP_Error
+	 */
+	private static function run_woo_bridge( $ability, array $input ) {
+		return self::guard(
+			function () use ( $ability, $input ) {
+				return Woo_Bridge_Repository::run( Woo_Bridge_Repository::operation( $ability ), $input );
 			}
 		);
 	}

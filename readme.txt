@@ -4,15 +4,15 @@ Tags: kirki, mcp, ai, page-builder, abilities
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.4.0
+Stable tag: 0.5.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Lets MCP-capable AI agents build and edit Kirki sites, Customizer values, and Kirki eCommerce stores.
+Lets MCP-capable AI agents build and edit Kirki sites, Customizer values, Kirki eCommerce stores, and Kirki WooCommerce Bridge templates.
 
 == Description ==
 
-Kirki MCP is a companion to the free Kirki 6.4 builder, optional Kirki Pro, and the standalone Kirki eCommerce plugin. It registers WordPress abilities for pages, sections, elements (including video, sliders, and tabs), popups, Content Manager collections, Customizer theme mods, and, when kirki-ecommerce is active, store catalog, orders, coupons, shipping, and WooCommerce migration. The official MCP Adapter plugin exposes those abilities to Claude Code, Cursor, VS Code, Windsurf, and other MCP clients. Setup files live in docs/CLIENTS.md and examples/clients/.
+Kirki MCP is a companion to the free Kirki 6.4 builder, optional Kirki Pro, the standalone Kirki eCommerce plugin, and Kirki WooCommerce Bridge. It registers WordPress abilities for pages, sections, elements (including video, sliders, and tabs), popups, Content Manager collections, Customizer theme mods, and, when those plugins are active, store catalog, orders, coupons, shipping, WooCommerce migration, and all 21 Kirki WooCommerce Bridge operations. The official MCP Adapter plugin exposes those abilities to Claude Code, Cursor, VS Code, Windsurf, and other MCP clients. Setup files live in docs/CLIENTS.md and examples/clients/.
 
 The plugin does not modify Kirki. Pages are saved in the post meta Kirki's editor already uses, so a page built through MCP opens and edits in the Kirki canvas.
 
@@ -23,6 +23,7 @@ Requires:
 * Kirki 6.4.x for visual-builder abilities (tested with 6.4.2)
 * Optional: Kirki Pro (detected at runtime; the license key is never exposed)
 * Optional: Kirki eCommerce 1.0.x (detected at runtime; the builder is not required)
+* Optional: Kirki WooCommerce Bridge 1.0.x (detected at runtime; requires WooCommerce and Kirki 6.4.x)
 
 Connect an agent with an application password to:
 
@@ -34,7 +35,7 @@ Destructive actions (`remove-element`, `trash-page`) require an explicit `confir
 
 == Installation ==
 
-1. Install and activate MCP Adapter. Install Kirki 6.4.x for builder features, and optionally Kirki eCommerce.
+1. Install and activate MCP Adapter. Install Kirki 6.4.x for builder features, and optionally Kirki eCommerce and Kirki WooCommerce Bridge.
 2. Upload the Kirki MCP zip and activate it.
 3. Create an application password under Users → Profile.
 4. Point your MCP client at the endpoint shown under Settings → Kirki MCP.
@@ -54,6 +55,17 @@ Kirki 6.4.x only. It was tested with 6.4.3. Kirki 6.5 and 7 are not supported. F
 Yes, with `kirki-mcp/publish-page`, and only when the user can publish pages.
 
 == Changelog ==
+
+= 0.5.0 =
+* Full Kirki WooCommerce Bridge 1.0.0 support. All 21 official operations are available as kirki-mcp/woo-* abilities, with official schemas and capability hints.
+* get-site-context reports Bridge installation, version, and readiness. Deletes require confirm: true.
+* Workflow: examples/workflows/woocommerce-bridge.md. Coverage matrix: docs/GAPS.md.
+
+= 0.4.0 =
+* Template export/import, official CloudFront catalogs, dynamic content, and interaction timelines.
+* MCP-owned Customizer registry and settings export/import.
+* eCommerce payment, checkout, cart, and gateway writes are opt-in (kirki_mcp_allow_store_payment_writes) and support dry_run. Incoming payment webhooks and password-change stay blocked. Audit log redacts secrets.
+* Coverage matrix: docs/GAPS.md.
 
 = 0.3.0 =
 * Client setup for Claude Code, Claude Desktop, Cursor, VS Code, Windsurf, Antigravity, Kilo Code, Cline, Roo Code, OpenCode, Continue, Zed, JetBrains AI Assistant, Gemini CLI, Codex CLI, Warp, LM Studio, and Augment.

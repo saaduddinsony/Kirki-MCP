@@ -2,7 +2,7 @@
 
 Copyright (C) 2026 S M Saad Uddin. This plugin is free software licensed under GPL-2.0-or-later.
 
-Kirki MCP is a WordPress plugin that lets any MCP-capable agent build and edit sites made with the [Kirki](https://kirki.com) visual builder, including advertised Kirki Pro surfaces that already have a free data format, WordPress Customizer values, and — when it is installed — the standalone [Kirki eCommerce](https://wordpress.org/plugins/kirki-ecommerce/) plugin. It is free and licensed GPL-2.0-or-later.
+Kirki MCP is a WordPress plugin that lets any MCP-capable agent build and edit sites made with the [Kirki](https://kirki.com) visual builder, including advertised Kirki Pro surfaces that already have a free data format, WordPress Customizer values, and — when they are installed — the standalone [Kirki eCommerce](https://wordpress.org/plugins/kirki-ecommerce/) plugin and [Kirki WooCommerce Bridge](https://github.com/saaduddinsony/kirki-woocommerce-bridge). It is free and licensed GPL-2.0-or-later.
 
 The plugin does not modify Kirki. It registers WordPress abilities, and the official [MCP Adapter](https://github.com/WordPress/mcp-adapter) exposes those abilities to Claude Code, Cursor, VS Code, Windsurf, and any other MCP client. Copy-paste setup for each verified client is in [docs/CLIENTS.md](docs/CLIENTS.md) and [examples/clients/](examples/clients/). The feature coverage matrix is [docs/GAPS.md](docs/GAPS.md).
 
@@ -16,12 +16,13 @@ Pages are stored in the same post meta Kirki's editor writes (`kirki` for the el
 - Kirki 6.4.x for visual-builder abilities (tested with 6.4.3; 6.5 and 7 are not supported)
 - Optional: Kirki Pro (detected at runtime; this plugin never returns the license key)
 - Optional: [Kirki eCommerce](https://wordpress.org/plugins/kirki-ecommerce/) 1.0.x (standalone; the Kirki builder is not required)
+- Optional: [Kirki WooCommerce Bridge](https://github.com/saaduddinsony/kirki-woocommerce-bridge) 1.0.x (requires WooCommerce and Kirki 6.4.x)
 
 ## Install on a live site
 
-1. Install and activate **MCP Adapter** from Plugins → Add New. Install **Kirki** 6.4.x for builder features. Optionally install **Kirki eCommerce**.
+1. Install and activate **MCP Adapter** from Plugins → Add New. Install **Kirki** 6.4.x for builder features. Optionally install **Kirki eCommerce** and **Kirki WooCommerce Bridge** (Bridge also needs WooCommerce).
 2. Install this plugin. Either upload the release zip from `bin/build-zip.sh`, or copy this directory to `wp-content/plugins/kirki-mcp` and activate **Kirki MCP**.
-3. In WordPress, open **Users → Profile**, scroll to **Application Passwords**, and create a password for your agent. Builder work needs Kirki builder access, which Kirki gives to administrators and editors. `edit_pages` is required to design pages and `publish_pages` to publish. Customizer abilities need `edit_theme_options`. Kirki eCommerce abilities need `manage_options`.
+3. In WordPress, open **Users → Profile**, scroll to **Application Passwords**, and create a password for your agent. Builder work needs Kirki builder access, which Kirki gives to administrators and editors. `edit_pages` is required to design pages and `publish_pages` to publish. Customizer abilities need `edit_theme_options`. Kirki eCommerce abilities need `manage_options`. Kirki WooCommerce Bridge element tools need `edit_posts`; settings, rules, and designs need `manage_woocommerce`.
 4. Confirm the endpoint on **Settings → Kirki MCP**. It is:
 
 ```text
@@ -149,6 +150,27 @@ If a client can only start a local process, use [`@automattic/mcp-wordpress-remo
 | `kirki-mcp/ecommerce-mutate` | Allowlisted eCommerce POST/PUT/PATCH/DELETE. DELETE requires `confirm: true`. Payment writes need the opt-in or `dry_run` |
 | `kirki-mcp/set-store-payment-writes` | Enable or disable payment/checkout/cart writes |
 | `kirki-mcp/list-audit-log` | Recent MCP write events, without credential values |
+| `kirki-mcp/woo-get-status` | Kirki WooCommerce Bridge readiness and versions |
+| `kirki-mcp/woo-list-elements` | WooCommerce elements available in the Kirki builder |
+| `kirki-mcp/woo-get-element` | One element and its settings schema |
+| `kirki-mcp/woo-render-element` | Server-render an element to HTML |
+| `kirki-mcp/woo-build-block` | Validated Kirki node ready to insert (does not save) |
+| `kirki-mcp/woo-list-dynamic-fields` | Product and store dynamic data fields |
+| `kirki-mcp/woo-resolve-dynamic-field` | Resolve a product or store field value |
+| `kirki-mcp/woo-get-settings` | Bridge settings and schema |
+| `kirki-mcp/woo-update-settings` | Change one or more Bridge settings |
+| `kirki-mcp/woo-list-template-contexts` | WooCommerce page contexts and conditions |
+| `kirki-mcp/woo-list-templates` | Template rules in match order |
+| `kirki-mcp/woo-create-template` | Assign a Kirki design to a WooCommerce context |
+| `kirki-mcp/woo-resolve-template` | Dry-run which rule applies |
+| `kirki-mcp/woo-get-template` | One template rule |
+| `kirki-mcp/woo-update-template` | Partially update a rule |
+| `kirki-mcp/woo-delete-template` | Delete a rule (keeps the design). Requires `confirm: true` |
+| `kirki-mcp/woo-list-designs` | Kirki designs that can be assigned to WooCommerce |
+| `kirki-mcp/woo-create-design` | Create a `kirki_template` (optionally with a starter and a rule) |
+| `kirki-mcp/woo-get-design` | A design's element tree and rules |
+| `kirki-mcp/woo-add-design-elements` | Insert WooCommerce elements into a design |
+| `kirki-mcp/woo-delete-design` | Trash or delete a `kirki_template` design. Requires `confirm: true` |
 
 The compiler accepts `video`, `slider`, and `tabs` in addition to the 0.2.x element types. See `get-element-schema`. The coverage matrix is [docs/GAPS.md](docs/GAPS.md).
 
@@ -195,7 +217,7 @@ Application passwords are a WordPress core feature. On a live site they require 
 - Section titles and symbol names are limited to letters, numbers, spaces, dots, underscores, and hyphens. Kirki prints a section title as `id="…"` with no escaping.
 - Kirki prints a custom font's `fontUrl`, or its `localUrl` when one is set, into a stylesheet link without escaping. New URLs are checked before they are stored. URLs already stored, including ones saved by Kirki's own font screen, are passed through `esc_url_raw` on the way out, via the `get_post_metadata` filter, before Kirki prints them. `audit-unsafe-titles` lists section titles and symbol names that were stored before that character limit and have not been saved again.
 - Updating a global class through this plugin refreshes the copy stored on symbols that use it, 20 symbols at a time, header and footer first. The rest continue on a single scheduled follow-up. Kirki's own class screen writes through its database layer and does not notify the plugin, so those edits are copied the next time `upsert-global-class` or `reapply-global-classes` runs. `reapply-global-classes` with `symbol_id` updates that one symbol and also strips default local CSS.
-- `remove-element`, `trash-page`, `trash-popup`, Content Manager and eCommerce DELETE, `publish-changeset`, template/catalog import, settings import, and Customizer unregister refuse to run unless `confirm` is `true`. Payment, checkout, cart, and gateway-install writes also need `kirki_mcp_allow_store_payment_writes` (or `dry_run: true`).
+- `remove-element`, `trash-page`, `trash-popup`, Content Manager and eCommerce DELETE, `woo-delete-template`, `woo-delete-design`, `publish-changeset`, template/catalog import, settings import, and Customizer unregister refuse to run unless `confirm` is `true`. Payment, checkout, cart, and gateway-install writes also need `kirki_mcp_allow_store_payment_writes` (or `dry_run: true`).
 - Edits to a published page stay on an unpublished Kirki stage until `publish-page`. Drafts are saved in post meta. `writing_to` on each page response says which of the two happened.
 
 ## Development
@@ -206,13 +228,13 @@ bash bin/build-zip.sh
 KIRKI_MCP_STAGING_CHECK=1 wp eval-file tests/e2e/staging-check.php
 ```
 
-`tests/e2e/staging-check.php` is for a test install. It refuses to run unless `KIRKI_MCP_STAGING_CHECK` is set. It publishes a page, edits it, publishes again, and temporarily takes the header role, then deletes that page and restores the previous header. The zip is written to `dist/kirki-mcp-0.4.0.zip`.
+`tests/e2e/staging-check.php` is for a test install. It refuses to run unless `KIRKI_MCP_STAGING_CHECK` is set. It publishes a page, edits it, publishes again, and temporarily takes the header role, then deletes that page and restores the previous header. The zip is written to `dist/kirki-mcp-0.5.0.zip`.
 
 ## Known gaps
 
-The full before/after matrix is [docs/GAPS.md](docs/GAPS.md). Remaining honest limitations in 0.4.0:
+The full before/after matrix is [docs/GAPS.md](docs/GAPS.md). A WooCommerce product-page workflow is in [examples/workflows/woocommerce-bridge.md](examples/workflows/woocommerce-bridge.md). Remaining honest limitations in 0.5.0:
 
 - Incoming Kirki eCommerce payment webhooks and customer password-change stay blocked.
 - Some official premium template zips may require a stored Kirki Pro license on the site. Catalog listing does not. The license key is never returned.
-- Supported builder range is Kirki `>= 6.4.0` and `< 6.5.0`, tested against 6.4.3 (free + Pro add-on, unlicensed) and Kirki eCommerce 1.0.2. `kirki_mcp_supported_kirki_range` can widen it after you have checked that build. The stored JSON is not a public schema.
+- Supported builder range is Kirki `>= 6.4.0` and `< 6.5.0`, tested against 6.4.3 (free + Pro add-on, unlicensed), Kirki eCommerce 1.0.2, and Kirki WooCommerce Bridge 1.0.0. `kirki_mcp_supported_kirki_range` can widen it after you have checked that build. The stored JSON is not a public schema.
 - Amazon Q CLI official HTTP examples do not show a Basic application-password header; Goose official `streamable_http` examples do not either. Those clients use the documented stdio bridge. Trae’s official `headers` schema is shipped.

@@ -1,21 +1,23 @@
-# Feature coverage matrix (Kirki MCP 0.4.0)
+# Feature coverage matrix (Kirki MCP 0.5.0)
 
 This matrix compares what an agent can do through Kirki MCP against:
 
 - Free [Kirki](https://kirki.com) 6.4.3 (visual builder **and** the Customizer toolkit in the same plugin)
 - [Kirki Pro](https://kirki.com) 6.4.3 (thin add-on that swaps in the Pro editor script, a License submenu, and access to official CloudFront catalogs; it is not a second copy of the builder)
 - [Kirki eCommerce](https://wordpress.org/plugins/kirki-ecommerce/) 1.0.2 (standalone Themeum plugin, slug `kirki-ecommerce`; it does **not** require the Kirki builder)
+- [Kirki WooCommerce Bridge](https://github.com/saaduddinsony/kirki-woocommerce-bridge) 1.0.0 (slug `kirki-woocommerce-bridge`; requires WooCommerce 8.0+ and Kirki 6.4.x)
 
-Sources used for the 0.4.0 audit: Kirki 6.4.3 (wordpress.org), Kirki Pro 6.4.3 (`kirki-pro/`, installed locally, no license key captured), kirki-ecommerce 1.0.2 (wordpress.org + plugin source, including `routes/api.php`), and the 0.3.0 ability surface. Pro is not bundled or redistributed.
+Sources used for the 0.5.0 audit: Bridge 1.0.0 (`docs/API.md`, `KirkiWoo\Operations::all()`), plus the 0.4.0 sources: Kirki 6.4.3 (wordpress.org), Kirki Pro 6.4.3 (`kirki-pro/`, installed locally, no license key captured), kirki-ecommerce 1.0.2 (wordpress.org + plugin source, including `routes/api.php`), and the 0.3.0 ability surface. Pro is not bundled or redistributed.
 
-Legend: **Supported** is available through an ability in 0.4.0. **Partial** is available with documented limits. **Withheld** is intentionally blocked. **Gap** would mean a remaining unimplemented product feature; none of the 0.3.0 product gaps remain except the withheld payment-webhook and password-change surfaces and version gating.
+Legend: **Supported** is available through an ability in 0.5.0 (0.4.0 columns keep the previous snapshot). **Partial** is available with documented limits. **Withheld** is intentionally blocked. **Gap** would mean a remaining unimplemented product feature; none of the 0.3.0 product gaps remain except the withheld payment-webhook and password-change surfaces and version gating.
 
 Runtime detection:
 
 - Builder abilities stay gated by `Compatibility::supported()` (Kirki `>= 6.4.0` and `< 6.5.0` by default).
-- Customizer, settings, registry, audit, and eCommerce abilities still register when the builder is missing or is an unsupported Kirki version.
-- `kirki-mcp/get-site-context` reports `kirki_pro` (boolean), `kirki_pro_plugin` (`installed`, `version`, `licensed`), `kirki_ecommerce` status, and `store_payment_writes`. The license key is never returned.
+- Customizer, settings, registry, audit, eCommerce, and WooCommerce Bridge abilities still register when the builder is missing or is an unsupported Kirki version.
+- `kirki-mcp/get-site-context` reports `kirki_pro` (boolean), `kirki_pro_plugin` (`installed`, `version`, `licensed`), `kirki_ecommerce` status, `kirki_woocommerce_bridge` status, and `store_payment_writes`. The license key is never returned.
 - eCommerce tools return a clear error when `kirki-ecommerce` is not installed. Payment and checkout writes also need `kirki_mcp_allow_store_payment_writes`.
+- WooCommerce Bridge tools return a clear error when the Bridge is not installed. Element and render tools need `edit_posts`; settings, rules, and designs need `manage_woocommerce`. `woo-delete-template` and `woo-delete-design` need `confirm: true`.
 
 ## Visual builder (free Kirki 6.4.x)
 
@@ -83,7 +85,26 @@ Abilities: `ecommerce-status`, `ecommerce-get`, `ecommerce-mutate`, `set-store-p
 | Customer password change | Gap | Withheld | `/password-change` stays blocked |
 | Customer profile, addresses, wishlist, resend-verification | Gap | Supported | Allowlisted except password-change |
 
-## What 0.4.0 still does not do, and why
+## Kirki WooCommerce Bridge 1.0.0
+
+Public plugin: [saaduddinsony/kirki-woocommerce-bridge](https://github.com/saaduddinsony/kirki-woocommerce-bridge). REST namespace `kirki-woo/v1`. Official operations are defined once in `KirkiWoo\Operations::all()` and also registered as `kirki-woo/*` abilities. Kirki MCP proxies every official operation one-to-one as `kirki-mcp/woo-<operation>`.
+
+A typical product-page flow is in `examples/workflows/woocommerce-bridge.md`.
+
+| Feature | 0.4.0 | 0.5.0 | Ability |
+| --- | --- | --- | --- |
+| Detect installation, version, readiness, and dependencies | Gap | Supported | `woo-get-status` (also `get-site-context.kirki_woocommerce_bridge`) |
+| List / get WooCommerce builder elements and schemas | Gap | Supported | `woo-list-elements`, `woo-get-element` |
+| Preview-render an element and build an insertable Kirki node | Gap | Supported | `woo-render-element`, `woo-build-block` |
+| List and resolve product / store dynamic fields | Gap | Supported | `woo-list-dynamic-fields`, `woo-resolve-dynamic-field` |
+| Get and update Bridge settings | Gap | Supported | `woo-get-settings`, `woo-update-settings` |
+| List contexts, list / create / get / update / resolve / delete template rules | Gap | Supported | `woo-list-template-contexts`, `woo-list-templates`, `woo-create-template`, `woo-get-template`, `woo-update-template`, `woo-resolve-template`, `woo-delete-template` (confirm required) |
+| List / create / get designs, add elements, delete designs | Gap | Supported | `woo-list-designs`, `woo-create-design`, `woo-get-design`, `woo-add-design-elements`, `woo-delete-design` (confirm required) |
+| Coexist with Kirki eCommerce on the same site | Gap | Supported | Detection only; eCommerce and Bridge stay separate APIs |
+
+The official 21 operations are the entire public Bridge surface in 1.0.0. MCP does not invent extra WooCommerce operations.
+
+## What 0.5.0 still does not do, and why
 
 1. **Incoming payment webhooks** — intentionally withheld. A webhook payload can mark an order paid.
 2. **Customer / WordPress password-change** — intentionally withheld, even for “complete” checkout coverage.

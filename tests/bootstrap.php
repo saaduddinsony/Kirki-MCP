@@ -7,7 +7,7 @@
 
 define( 'ABSPATH', __DIR__ . '/' );
 if ( ! defined( 'KIRKI_MCP_VERSION' ) ) {
-	define( 'KIRKI_MCP_VERSION', '0.4.0' );
+	define( 'KIRKI_MCP_VERSION', '0.5.0' );
 }
 
 if ( ! function_exists( 'wp_parse_url' ) ) {
@@ -125,3 +125,4 @@ require dirname( __DIR__ ) . '/includes/class-interaction-repository.php';
 require dirname( __DIR__ ) . '/includes/class-customizer-registry.php';
 require dirname( __DIR__ ) . '/includes/class-settings-repository.php';
 require dirname( __DIR__ ) . '/includes/class-template-repository.php';
+require dirname( __DIR__ ) . '/includes/class-woo-bridge-repository.php';

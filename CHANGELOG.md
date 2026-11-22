@@ -1,6 +1,14 @@
 # Changelog
 
+## 0.5.0
+
+- Adds full [Kirki WooCommerce Bridge](https://github.com/saaduddinsony/kirki-woocommerce-bridge) 1.0.0 support. All 21 official operations are proxied as `kirki-mcp/woo-*` abilities (`woo-get-status` through `woo-delete-design`) with the official schemas, `edit_posts` / `manage_woocommerce` caps, and readonly / destructive / idempotent hints.
+- `get-site-context` reports `kirki_woocommerce_bridge` (installed, version, ready, dependencies, operation count). The tools stay registered when the builder is unsupported; they return a clear error when the Bridge is not installed.
+- `woo-delete-template` and `woo-delete-design` require MCP-only `confirm: true`. Writes are recorded in the MCP audit log.
+- Workflow: `examples/workflows/woocommerce-bridge.md`. Coverage matrix: `docs/GAPS.md`.
+
 ## 0.4.0
+
 
 - Closes the remaining 0.3.0 product gaps for Kirki 6.4.3, Kirki Pro 6.4.3, and Kirki eCommerce 1.0.2. The matrix is `docs/GAPS.md`.
 - Template export/import: site packs go through Kirki `TemplateExport` / `TemplateImport`; single pages use a `kirki-data.json` zip. Import requires `confirm: true` and creates a draft unless a `page_id` is supplied.
